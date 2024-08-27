@@ -1,0 +1,17 @@
+# 使用基礎映像
+FROM python:3.8.19-slim
+
+# 複製應用程式碼到容器
+COPY . /app
+
+# 設定工作目錄
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y libgl1 -y libglib2.0-0
+
+# 升級 pip 並安裝必要的 Python 套件
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+
+# 啟動腳本
+CMD ["python", "/app/app.py"]

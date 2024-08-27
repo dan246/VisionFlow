@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Snapshot</title>
+    <style>
+        #canvas {
+            border: 1px solid black;
+            display: block;
+            margin: 0 auto;
+        }
+
+        #snapshot {
+            display: none;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        #controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        button {
+            background-color: #007bff;
+            /* 藍色背景 */
+            color: white;
+            /* 白色文字 */
+            border: none;
+            /* 無邊框 */
+            padding: 10px 20px;
+            /* 內邊距 */
+            text-align: center;
+            /* 文字居中 */
+            text-decoration: none;
+            /* 無下劃線 */
+            display: inline-block;
+            /* 行內區塊元素 */
+            font-size: 16px;
+            /* 字體大小 */
+            margin: 4px 2px;
+            /* 外邊距 */
+            cursor: pointer;
+            /* 鼠標指針 */
+            border-radius: 12px;
+            /* 圓角邊框 */
+            transition-duration: 0.4s;
+            /* 變化持續時間 */
+        }
+
+        button:hover {
+            background-color: white;
+            /* 滑鼠懸停時背景顏色 */
+            color: black;
+            /* 滑鼠懸停時文字顏色 */
+            border: 2px solid #007bff;
+            /* 滑鼠懸停時邊框 */
+        }
+    </style>
+</head>
+
+<body>
+    <h1></h1>
+    <img id="snapshot" src="" alt="Camera Snapshot">
+    <div id="canvasDiv">
+        <canvas id="canvas"></canvas>
+    </div>
+    <div id="controls">
+        <button onclick="undoRect()">取消框</button>
+        <button onclick="saveRects()">儲存框</button>
+        <!-- <button onclick="getRects()">獲取框</button> -->
+        <button onclick="clearRects()">清除框</button>
+    </div>
+    <script>
+        let rects = [];
+        let isDrawing = false;
+        let startX, startY;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let img = new Image();
+        const cameraId = '{{ camera_id }}';
+
+        window.onload = function () {
+            fetchSnapshot(cameraId);
+            getRects()
+        };
+
+        function adjustCanvas() {
+            const maxWidth = window.innerWidth * 0.9;
+            const maxHeight = window.innerHeight * 0.9;
+            const imgRatio = img.naturalWidth / img.naturalHeight;
+            const windowRatio = maxWidth / maxHeight;
+
+            if (imgRatio > windowRatio) {
+                canvas.width = maxWidth;
+                canvas.height = maxWidth / imgRatio;
+            } else {
+                canvas.height = maxHeight;
+                canvas.width = maxHeight * imgRatio;
+            }
+
+            scale = canvas.width / img.naturalWidth;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            rects.forEach(rect => drawRect(rect));
+        }
+
+        window.addEventListener('resize', adjustCanvas);
+
+        function fetchSnapshot(ID) {
+            fetch(`/getstream/get_snapshot/${ID}`)
+                .then(response => response.ok ? response.blob() : Promise.reject('網絡響應不是ok'))
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    img.onload = adjustCanvas;
+                    img.src = url;
+                })
+                .catch(error => {
+                    console.error('錯誤:', error);
+                    alert('無法加載圖片');
+                });
+        }
+
+        let scale = 1;
+
+        function drawRect(rect) {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(rect.x * scale, rect.y * scale, rect.width * scale, rect.height * scale);
+        }
+
+        canvas.addEventListener('mousedown', function (e) {
+            startX = e.offsetX / scale;
+            startY = e.offsetY / scale;
+            isDrawing = true;
+        });
+
+        canvas.addEventListener('mousemove', function (e) {
+            if (isDrawing) {
+                const mouseX = e.offsetX / scale;
+                const mouseY = e.offsetY / scale;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                rects.forEach(rect => drawRect(rect));
+                drawRect({ x: startX, y: startY, width: mouseX - startX, height: mouseY - startY });
+            }
+        });
+
+        canvas.addEventListener('mouseup', function (e) {
+            if (isDrawing) {
+                const endX = e.offsetX / scale;
+                const endY = e.offsetY / scale;
+                const newRect = { x: startX, y: startY, width: endX - startX, height: endY - startY };
+                rects.push(newRect);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                rects.forEach(rect => drawRect(rect));
+                isDrawing = false;
+            }
+        });
+
+        function saveRects() {
+            fetch(`/getstream/rectangles/${cameraId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(rects)
+            }).then(response => response.json())
+                .then(data => console.log(data.message));
+        }
+
+        function getRects() {
+            fetch(`/getstream/rectangles/${cameraId}`)
+                .then(response => response.json())
+                .then(data => {
+                    rects = data;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    rects.forEach(rect => drawRect(rect));
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function clearRects() {
+            fetch(`/getstream/rectangles/${cameraId}`, {
+                method: 'DELETE'
+            }).then(response => response.json())
+                .then(data => {
+                    rects = [];
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    alert(data.message);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function undoRect() {
+            rects.pop();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            rects.forEach(rect => drawRect(rect));
+        }
+    </script>
+</body>
+
+</html>

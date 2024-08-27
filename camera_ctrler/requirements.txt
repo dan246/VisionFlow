@@ -1,0 +1,9 @@
+Flask==3.0.1
+requests==2.31.0
+opencv-python==4.9.0.80
+pandas==2.2.2
+flask-restx==1.3.0
+openpyxl
+redis==5.0.4
+Pillow==10.3.0
+Flask-Cors == 4.0.0
