@@ -1,6 +1,6 @@
 # VisionNotify
 
-VisionNotify 是一個用於影像辨識與通知系統的後端應用程式。該專案使用 Flask 框架，並透過 PostgreSQL 作為資料庫進行資料管理。應用程式中整合了 Redis 來管理攝影機影像的處理與分配。所有環境均可使用 Docker 進行配置和管理。
+VisionNotify 是一個用於影像辨識與通知系統的後端應用程式。使用 Flask 框架，並透過 PostgreSQL 作為資料庫進行資料管理。應用程式中整合了 Redis 來管理攝影機影像的處理與分配。所有環境均可使用 Docker 進行配置和管理。
 
 ## 目錄
 
@@ -20,27 +20,27 @@ VisionNotify 是一個用於影像辨識與通知系統的後端應用程式。�
 
 ## 專案介紹
 
-VisionNotify 是一個後端應用程式，旨在處理影像辨識與通知系統的相關操作。該應用程式提供了使用者認證、攝影機管理、通知發送以及與 LINE 和郵件通知相關的功能。
+VisionNotify 是一個後端應用程式，用於處理影像辨識與通知系統的相關操作。該應用程式提供了使用者認證、攝影機管理、通知發送以及與 LINE 和郵件通知相關的功能。
 
 ## 快速開始
 
 ### 先決條件
 
-在開始之前，請確保你已經安裝了以下工具：
+在開始之前，請確保已經安裝了以下工具：
 
 - [Docker](https://www.docker.com/)
 - [Docker Compose](https://docs.docker.com/compose/)
 
 ### 設置步驟
 
-1. 先克隆此專案到你的本地環境：
+1. 先克隆此專案到本地環境：
 
     ```bash
     git clone https://github.com/yourusername/VisionNotify.git
     cd VisionNotify
     ```
 
-2. 編寫 `.env` 文件來配置你的環境變數（選擇性）：
+2. 編寫 `.env` 文件來配置環境變數（選擇性）：
 
     ```bash
     touch .env
@@ -361,7 +361,8 @@ VisionNotify 使用 Redis 來管理攝影機的影像資料流。攝影機的影
 2. **資料庫遷移**: 每次更新模型後，請運行 `flask db migrate` 和 `flask db upgrade` 來應用資料庫遷移。
 3. **Redis 配置**: 使用 Redis 來管理影像資料的存儲與處理，確保其正常運行並與 worker 節點連接。
 4. **Docker 啟動**: 請使用 Docker Compose 來管理應用程式的啟動和停止，尤其是當需要啟動多個 worker 節點時。
-5. **資料備份**: 定期備份你的 PostgreSQL 資料庫與 Redis 資料以防止數據丟失。
+5. **資料備份**: 定期備份 PostgreSQL 資料庫與 Redis 資料以防止數據丟失。
+6. **模型路徑**: 模型請替換成自己的模型，可支援多個模型
 
 ## License
 
