@@ -497,7 +497,7 @@ VisionFlow 使用 Redis 來管理攝影機的影像資料流。攝影機的影�
 3. **Redis 配置**: 使用 Redis 來管理影像資料的存儲與處理，確保其正常運行並與 worker 節點連接。
 4. **Docker 啟動**: 請使用 Docker Compose 來管理應用程式的啟動和停止，尤其是當需要啟動多個 worker 節點時。
 5. **資料備份**: 定期備份你的 PostgreSQL 資料庫與 Redis 資料以防止數據丟失。
-6. **模型路徑**: 模型請替換成自己的模型。
+6. **模型路徑**: 模型請替換成自己的模型(位於\object_recognition\app.py)。
 
 ## License
 
