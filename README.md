@@ -1,6 +1,6 @@
-# VisionNotify
+# VisionFlow
 
-VisionNotify 是一個用於影像辨識與通知系統的後端應用程式。該專案使用 Flask 框架，並透過 PostgreSQL 作為資料庫進行資料管理。應用程式中整合了 Redis 來管理攝影機影像的處理與分配。所有環境均可使用 Docker 進行配置和管理。
+VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該專案使用 Flask 框架，並透過 PostgreSQL 作為資料庫進行資料管理。應用程式中整合了 Redis 來管理攝影機影像的處理與分配。所有環境均可使用 Docker 進行配置和管理。
 
 ## 目錄
 
@@ -21,7 +21,7 @@ VisionNotify 是一個用於影像辨識與通知系統的後端應用程式。�
 
 ## 專案介紹
 
-VisionNotify 是一個後端應用程式，旨在處理影像辨識與通知系統的相關操作。該應用程式提供了使用者認證、攝影機管理、通知發送以及與 LINE 和郵件通知相關的功能。
+VisionFlow 是一個後端應用程式，旨在處理影像辨識與通知系統的相關操作。該應用程式提供了使用者認證、攝影機管理、通知發送以及與 LINE 和郵件通知相關的功能。
 
 ## 快速開始
 
@@ -37,8 +37,8 @@ VisionNotify 是一個後端應用程式，旨在處理影像辨識與通知系�
 1. 先克隆此專案到你的本地環境：
 
     ```bash
-    git clone https://github.com/yourusername/VisionNotify.git
-    cd VisionNotify
+    git clone https://github.com/yourusername/VisionFlow.git
+    cd VisionFlow
     ```
 
 2. 編寫 `.env` 文件來配置你的環境變數（選擇性）：
@@ -81,7 +81,7 @@ VisionNotify 是一個後端應用程式，旨在處理影像辨識與通知系�
 
 ### 影像處理
 
-VisionNotify 使用 Redis 來管理攝影機的影像資料流。攝影機的影像會被存儲到 Redis 中，並分配到不同的 worker 虛擬機進行處理。每個影像在辨識後會存儲為另一個 Redis key，以供後續使用。
+VisionFlow 使用 Redis 來管理攝影機的影像資料流。攝影機的影像會被存儲到 Redis 中，並分配到不同的 worker 虛擬機進行處理。每個影像在辨識後會存儲為另一個 Redis key，以供後續使用。
 
 1. **影像儲存與取得**:
    - 每個攝影機的最新影像會存儲在 Redis 中，使用 `camera_{camera_id}_latest_frame` 作為 key。
@@ -93,7 +93,7 @@ VisionNotify 使用 Redis 來管理攝影機的影像資料流。攝影機的影
 
 ### 攝影機分配
 
-為了有效管理多台攝影機的影像處理，VisionNotify 配置了多個 worker 節點，這些節點能夠分散處理工作負載，提升系統效率。每個 worker 都從 Redis 中提取攝影機影像進行處理，確保系統的穩定性與擴展性。
+為了有效管理多台攝影機的影像處理，VisionFlow 配置了多個 worker 節點，這些節點能夠分散處理工作負載，提升系統效率。每個 worker 都從 Redis 中提取攝影機影像進行處理，確保系統的穩定性與擴展性。
 
 ## API 說明
 
@@ -431,7 +431,7 @@ VisionNotify 使用 Redis 來管理攝影機的影像資料流。攝影機的影
 
 ## 使用範例
 
-以下是使用 VisionNotify API 的一些範例：
+以下是使用 VisionFlow API 的一些範例：
 
 1. **註冊新使用者並登入**
 
