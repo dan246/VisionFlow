@@ -502,3 +502,14 @@ VisionFlow 使用 Redis 來管理攝影機的影像資料流。攝影機的影�
 ## License
 
 本專案使用 [MIT License](LICENSE) 授權。
+
+
+## Contributions & Contact
+
+If you have any questions or contributions, please feel free to contact me. Your input is very welcome and will help improve this project. You can open an issue or submit a pull request on GitHub. Alternatively, you can reach me directly through the contact details provided below.
+
+### 聯繫與貢獻
+
+如果您對此項目有任何疑問或想要做出貢獻，歡迎與我聯繫。您的反饋對於改進項目非常寶貴。您可以在 GitHub 上開啟問題(issue)或提交拉取請求(pull request)。或者，您也可以通過下方提供的聯繫方式直接與我聯繫。
+
+sky328423@gmail.com
