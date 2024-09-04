@@ -1,4 +1,5 @@
 # VisionFlow
+[EN](https://github.com/dan246/VisionFlow/blob/main/README_en.md)
 
 VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該專案使用 Flask 框架，並透過 PostgreSQL 作為資料庫進行資料管理。應用程式中整合了 Redis 來管理攝影機影像的處理與分配。所有環境均可使用 Docker 進行配置和管理。
 
