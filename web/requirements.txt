@@ -1,0 +1,7 @@
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+psycopg2
+requests
+flask_cors
+flask_migrate

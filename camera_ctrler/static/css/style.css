@@ -1,0 +1,37 @@
+#canvas {
+    border: 1px solid black;
+    display: block;
+    margin: 0 auto;
+}
+
+#snapshot {
+    display: none;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+#controls {
+    text-align: center;
+    margin-top: 20px;
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 12px;
+    transition-duration: 0.4s;
+}
+
+button:hover {
+    background-color: white;
+    color: black;
+    border: 2px solid #007bff;
+}
