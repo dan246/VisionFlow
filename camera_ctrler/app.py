@@ -12,9 +12,9 @@ from flask_cors import CORS
 import os
 app = Flask(__name__)
 api = Api(app)
-
+CORS(app)
 # 允取特定網域打入
-# allowed_origins = ["https://pytest.intemotech.com","https://airport.intemotech.com","https://airportobu.intemotech.com","https://tpeplane.intemotech.com","https://cameractrl.intemotech.com","https://frigate.intemotech.com","https://metabase.intemotech.com","https://map.intemotech.com","https://promos.information"]
+# allowed_origins = ["https://pytest.intemotech.com"]
 
 # cors = CORS(app, resources={
 #     r"/*": {"origins": allowed_origins}
@@ -102,25 +102,33 @@ def snapshot_ui(ID):
     image_key = f'camera_{ID}_latest_frame'
     image_data = r.get(image_key)
     if image_data:
-        image = Image.open(io.BytesIO(image_data))
-        draw = ImageDraw.Draw(image)
-        rects_key = f'rectangles_{ID}'
-        for key in r.scan_iter(f"{rects_key}:*"):
-            rect_data = r.hgetall(key)
-            rect = [int(float(v.decode())) for v in rect_data.values()]
-            # 確保 x1 >= x0 和 y1 >= y0
-            if rect[2] < 0:  # rect[2] 是 width，如果是負數，需要調整 x 與 width
-                rect[0] += rect[2]  # rect[0] 是 x
-                rect[2] = abs(rect[2])
-            if rect[3] < 0:  # rect[3] 是 height，如果是負數，需要調整 y 與 height
-                rect[1] += rect[3]  # rect[1] 是 y
-                rect[3] = abs(rect[3])
-            draw.rectangle([rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3]], outline='red', width=2)
-        
-        buffered = io.BytesIO()
-        image.save(buffered, format="JPEG")
-        encoded_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
-        return render_template('snapshot_ui.html', camera_id=ID, image_data=encoded_image)
+        try:
+            image = Image.open(io.BytesIO(image_data))
+            draw = ImageDraw.Draw(image)
+            rects_key = f'rectangles_{ID}'
+            for key in r.scan_iter(f"{rects_key}:*"):
+                rect_data = r.hgetall(key)
+                rect = [int(float(v.decode())) for v in rect_data.values()]
+                # 確保 x1 >= x0 和 y1 >= y0
+                if rect[2] < 0:
+                    rect[0] += rect[2]
+                    rect[2] = abs(rect[2])
+                if rect[3] < 0:
+                    rect[1] += rect[3]
+                    rect[3] = abs(rect[3])
+                draw.rectangle([rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3]], outline='red', width=2)
+            
+            buffered = io.BytesIO()
+            image.save(buffered, format="JPEG")
+            encoded_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+            # 確保這裡被執行
+            print("Rendering template with image data...")
+            return render_template('snapshot_ui.html', camera_id=ID, image_data=encoded_image)
+
+        except Exception as e:
+            print(f"Error processing image for {ID}: {e}")
+            return send_file('no_single.jpg', mimetype='image/jpeg')
     else:
         return send_file('no_single.jpg', mimetype='image/jpeg')
 
@@ -148,4 +156,4 @@ def handle_rectangles(ID):
         return jsonify(message="所有矩形已清除"), 200
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=15440)

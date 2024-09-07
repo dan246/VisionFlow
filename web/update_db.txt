@@ -2,6 +2,6 @@
 export PYTHONPATH=/app
 
 ========================================================
-flask db init
-flask db migrate
-flask db upgrade
+1. flask db init
+2. flask db migrate
+3. flask db upgrade

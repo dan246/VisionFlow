@@ -23,32 +23,37 @@ class CameraManager:
         for worker_id in range(1, self.num_workers + 1):
             worker_key = f'worker_{worker_id}_urls'
             self.redis_client.delete(worker_key)
-            print(f"Cleared old cameras for worker {worker_id}.")
+            # print(f"Cleared old cameras for worker {worker_id}.")
             logging.info(f"Cleared old cameras for worker {worker_id}.")
 
     def fetch_and_update_cameras(self):
         self.clear_old_cameras()
 
-        url = f"{self.SERVERIP}/api/v1/cameras"
+        url = f"{self.SERVERIP}/cameras"
         headers = {}
         response = requests.get(url, headers=headers)
+        
         if response.status_code == 200:
-            camera_data = response.json().get("data", [])
-            for camera in camera_data:
-                worker_id = int(camera['id']) % self.num_workers + 1
-                worker_key = f'worker_{worker_id}_urls'
-                self.redis_client.sadd(worker_key, f"{camera['id']}|{camera['rtsp_url']}")
-                print(f"Added camera {camera['id']} to Redis at worker {worker_id}.")
-                logging.info(f"Added camera {camera['id']} to Redis at worker {worker_id}.")
+            try:
+                # 假設 response.json() 返回的是列表
+                camera_data = response.json()  # 不再使用 get()，因為這是一個列表
+                for camera in camera_data:
+                    worker_id = int(camera['id']) % self.num_workers + 1
+                    worker_key = f'worker_{worker_id}_urls'
+                    self.redis_client.sadd(worker_key, f"{camera['id']}|{camera['stream_url']}")
+                    # print(f"Added camera {camera['id']} to Redis at worker {worker_id}.")
+                    logging.info(f"Added camera {camera['id']} to Redis at worker {worker_id}.")
 
-            # 發布更新事件給所有工作器
-            for worker_id in range(1, self.num_workers + 1):
-                worker_key = f'worker_{worker_id}_urls'
-                self.redis_client.publish(f'{worker_key}_update', 'updated')
-                logging.info(f"Published update for worker {worker_id}.")
-
+                # 發布更新事件給所有工作器
+                for worker_id in range(1, self.num_workers + 1):
+                    worker_key = f'worker_{worker_id}_urls'
+                    self.redis_client.publish(f'{worker_key}_update', 'updated')
+                    logging.info(f"Published update for worker {worker_id}.")
+            except Exception as e:
+                logging.error(f"處理攝影機數據時發生錯誤: {e}")
         else:
             logging.error(f"請求失敗，狀態碼：{response.status_code}")
+
 
     def run(self):
         thread = threading.Thread(target=self.fetch_and_update_cameras)

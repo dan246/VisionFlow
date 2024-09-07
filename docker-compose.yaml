@@ -31,8 +31,8 @@ services:
       - ./web:/app
     ports:
       - "5000:5000"
-    # command: sh -c "flask run --no-debugger --host 0.0.0.0"
-    command: sh -c "sleep 100000"
+    command: sh -c "python app.py"
+    # command: sh -c "sleep 100000"
     networks:
       - service-networks
 
@@ -54,7 +54,7 @@ services:
       - SERVERIP=http://backend:5000
     ports:
       - "15440:5000"
-    # command: sh -c "flask run --no-debugger --host 0.0.0.0"
+    command: sh -c "flask run --no-debugger --host 0.0.0.0"
     networks:
       - service-networks
 

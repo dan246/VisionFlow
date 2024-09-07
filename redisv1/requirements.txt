@@ -3,4 +3,3 @@ redis
 numpy
 flask
 requests
-ultralytics

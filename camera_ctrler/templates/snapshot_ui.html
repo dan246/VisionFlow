@@ -9,7 +9,7 @@
 </head>
 
 <body>
-    <h1></h1>
+    <h1>Camera Snapshot for Camera {{ camera_id }}</h1>
     <img id="snapshot" src="" alt="Camera Snapshot">
     <div id="canvasDiv">
         <canvas id="canvas"></canvas>
@@ -19,6 +19,9 @@
         <button onclick="saveRects()">儲存框</button>
         <button onclick="clearRects()">清除框</button>
     </div>
+    <script>
+        const cameraId = "{{ camera_id }}";
+    </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 

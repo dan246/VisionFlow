@@ -4,11 +4,11 @@ let startX, startY;
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 let img = new Image();
-const cameraId = '{{ camera_id }}';
+let scale = 1;
 
 window.onload = function () {
     fetchSnapshot(cameraId);
-    getRects()
+    getRects();
 };
 
 function adjustCanvas() {
@@ -45,8 +45,6 @@ function fetchSnapshot(ID) {
             alert('無法加載圖片');
         });
 }
-
-let scale = 1;
 
 function drawRect(rect) {
     ctx.strokeStyle = 'red';

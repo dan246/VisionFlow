@@ -1,6 +1,8 @@
 # VisionFlow
+[中](https://github.com/dan246/VisionFlow/blob/main/README.md)
+[EN](https://github.com/dan246/VisionFlow/blob/main/README_en.md)
 
-VisionFlow is a backend application designed for image recognition and notification systems. It uses the Flask framework and integrates PostgreSQL for data management. The application also leverages Redis for managing camera image processing and allocation. All environments are configured and managed using Docker.
+VisionFlow is a backend application for image recognition and notification systems. The project uses the Flask framework and PostgreSQL for database management. Redis is integrated to manage the processing and distribution of camera images. All environments can be set up and managed using Docker.
 
 ## Table of Contents
 
@@ -8,7 +10,7 @@ VisionFlow is a backend application designed for image recognition and notificat
 - [Quick Start](#quick-start)
   - [Prerequisites](#prerequisites)
   - [Setup Steps](#setup-steps)
-- [Redis Functionality](#redis-functionality)
+- [Redis Features](#redis-features)
 - [API Documentation](#api-documentation)
   - [User Authentication API](#user-authentication-api)
   - [Camera Management API](#camera-management-api)
@@ -18,90 +20,77 @@ VisionFlow is a backend application designed for image recognition and notificat
   - [Image Processing and Streaming API](#image-processing-and-streaming-api)
 - [Usage Examples](#usage-examples)
 - [Notes](#notes)
-- [License](#license)
-- [Contributions & Contact](#contributions--contact)
 
 ## Project Overview
 
-VisionFlow is a backend application aimed at handling image recognition and notification systems. The application provides user authentication, camera management, notification delivery, and integrations with LINE and email services for sending notifications.
+VisionFlow is a backend application designed to handle operations related to image recognition and notification systems. It provides user authentication, camera management, notification sending, and features related to LINE and email notifications.
 
 ## Quick Start
 
 ### Prerequisites
 
-Before starting, ensure you have the following tools installed:
+Before you begin, make sure you have the following tools installed:
 
 - [Docker](https://www.docker.com/)
 - [Docker Compose](https://docs.docker.com/compose/)
 
 ### Setup Steps
 
-1. Clone this project to your local environment:
+1. First, clone this project to your local environment:
 
     ```bash
     git clone https://github.com/yourusername/VisionFlow.git
     cd VisionFlow
     ```
 
-2. Create a `.env` file to configure your environment variables (optional):
+2. Start the services using Docker Compose:
 
     ```bash
-    touch .env
+    docker-compose -f docker-compose.yaml -f docker-compose-redis.yaml up -d
     ```
 
-    Add the following content to the `.env` file:
+    This will automatically download the necessary Docker images, install dependencies, and start the Flask application on `http://localhost:5000`.
 
-    ```env
-    DATABASE_URL=postgresql://user:password@db:5432/vision_notify
-    SECRET_KEY=your_secret_key
-    REDIS_URL=redis://redis:6379/0
-    ```
+3. If you need to migrate the database (execute this the first time or after updating models):
+    1. Enter the container:
+        ```bash
+        docker-compose exec -it backend 
+        ```
+    2. Once inside, follow the steps in `update_db.txt` to complete the migration.
 
-3. Start the services using Docker Compose:
+4. If you need to configure Redis with multiple worker nodes, use `docker-compose-redis.yaml`:
 
     ```bash
-    docker-compose up --build
+    docker-compose -f docker-compose-redis.yaml up -D
     ```
 
-    This will automatically download the necessary Docker images, install dependencies, and start the Flask application at `http://localhost:5000`.
+    This will start the Redis service along with multiple worker nodes to handle image recognition and camera distribution tasks.
 
-4. If you need to migrate the database (on the first run or when updating models):
+5. **For object recognition:** Replace the model with your own URL and ensure the file is named `best.pt` (you can configure multiple model URLs, so the `.pt` model won’t be overwritten).
 
-    ```bash
-    docker-compose exec backend flask db upgrade
-    ```
-
-5. To configure Redis with multiple worker nodes, use `docker-compose-redis.yaml`:
-
-    ```bash
-    docker-compose -f docker-compose-redis.yaml up --build
-    ```
-
-    This will start Redis services and multiple worker nodes to handle image recognition and camera allocation.
-
-## Redis Functionality
+## Redis Features
 
 ### Image Processing
 
-VisionFlow uses Redis to manage the camera image data stream. Camera images are stored in Redis and distributed to different worker nodes for processing. Each processed image is stored with a different Redis key for subsequent use.
+VisionFlow uses Redis to manage camera image data. Camera images are stored in Redis and distributed to different worker nodes for processing. Each image, once recognized, is stored as an individual Redis key for future use.
 
 1. **Image Storage and Retrieval**:
-   - The latest image from each camera is stored in Redis under the key `camera_{camera_id}_latest_frame`.
-   - The processed result after image recognition is retrieved using the key `camera_{camera_id}_boxed_image`.
+   - The latest image from each camera is stored in Redis with the key `camera_{camera_id}_latest_frame`.
+   - The recognized image is retrieved via the key `camera_{camera_id}_boxed_image`.
 
 2. **Image Recognition Workflow**:
    - When a camera captures an image, it is stored in Redis with the key `camera_{camera_id}_latest_frame`.
-   - A worker retrieves the image from Redis for recognition processing and stores the processed result in `camera_{camera_id}_boxed_image`.
+   - A worker fetches the image from Redis for recognition processing and stores the processed result in `camera_{camera_id}_boxed_image`.
 
-### Camera Allocation
+### Camera Assignment
 
-To effectively manage image processing for multiple cameras, VisionFlow configures multiple worker nodes. These nodes help distribute the workload, improving system efficiency. Each worker retrieves camera images from Redis for processing, ensuring system stability and scalability.
+To efficiently manage the image processing of multiple cameras, VisionFlow configures multiple worker nodes. These nodes distribute the workload, improving system efficiency. Each worker retrieves images from Redis for processing, ensuring system stability and scalability.
 
 ## API Documentation
 
 ### User Authentication API
 
-- **Register a New User**
+- **Register New User**
 
     ```http
     POST /register
@@ -177,7 +166,7 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
     ]
     ```
 
-- **Add a New Camera**
+- **Add New Camera**
 
     ```http
     POST /cameras
@@ -224,7 +213,7 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
     ]
     ```
 
-- **Create a New Notification**
+- **Create New Notification**
 
     ```http
     POST /notifications
@@ -269,7 +258,7 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
     ]
     ```
 
-- **Add a New LINE Token**
+- **Add New LINE Token**
 
     ```http
     POST /line_tokens
@@ -312,7 +301,7 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
     ]
     ```
 
-- **Add a New Email Recipient**
+- **Add New Email Recipient**
 
     ```http
     POST /email_recipients
@@ -353,7 +342,7 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
     }
     ```
 
-- **Get the Latest Snapshot from a Camera**
+- **Get Latest Camera Snapshot**
 
     ```http
     GET /get_snapshot/<camera_id>
@@ -361,9 +350,9 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
 
     **Response:**
 
-    Returns a JPEG image data stream.
+    Returns a JPEG image stream.
 
-- **Get an Image by Path**
+- **Get Image by Path**
 
     ```http
     GET /image/<path:image_path>
@@ -381,9 +370,9 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
 
     **Response:**
 
-    Returns the real-time image stream from a camera.
+    Returns the real-time image stream from the camera.
 
-- **Get Recognized Image Stream**
+- **Get Recognized Real-time Image Stream**
 
     ```http
     GET /recognized_stream/<ID>
@@ -391,9 +380,9 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
 
     **Response:**
 
-    Returns the recognized image stream from a camera.
+    Returns the real-time image stream after recognition processing.
 
-- **Display Snapshot with Rectangles**
+- **Display Camera Snapshot with Bounding Boxes**
 
     ```http
     GET /snapshot_ui/<ID>
@@ -401,9 +390,9 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
 
     **Response:**
 
-    Displays the camera snapshot along with the marked rectangles (focus areas). Once set, the model will focus only on the specified areas.
+    Displays the camera snapshot with drawn bounding boxes (regions of interest). Once configured, the model will only focus on the areas inside the boxes.
 
-- **Manage Rectangles (Focus Areas)**
+- **Manage Bounding Boxes**
 
     ```http
     POST /rectangles/<ID>
@@ -427,78 +416,83 @@ To effectively manage image processing for multiple cameras, VisionFlow configur
 
     **Response:**
 
-    - POST: `Rectangles saved successfully`
-    - GET: Returns all the rectangles for the camera.
-    - DELETE: `All rectangles cleared successfully`
+    - POST: `Bounding boxes saved`
+    - GET: Returns all bounding boxes for the camera.
+    - DELETE: `All bounding boxes cleared`
 
 ## Usage Examples
 
 Here are some examples of how to use the VisionFlow API:
 
-1. **Register a New User and Login**
+1. **Register a new user and log in**
 
     ```bash
     curl -X POST http://localhost:5000/register -H "Content-Type: application/json" -d '{"username": "user1", "email": "user1@example.com", "password": "password123"}'
     curl -X POST http://localhost:5000/login -H "Content-Type: application/json" -d '{"username": "user1", "password": "password123"}'
     ```
 
-2. **Add a New Camera**
+2. **Add a new camera**
 
     ```bash
     curl -X POST http://localhost:5000/cameras -H "Content-Type: application/json" -d '{"name": "Camera 1", "stream_url": "http://camera-stream-url", "location": "Entrance"}'
     ```
 
-3. **Create a New Notification**
+3. **Create a new notification**
 
     ```bash
     curl -X POST http://localhost:5000/notifications -H "Content-Type: application/json" -d '{"account_uuid": "your-account-uuid", "camera_id": 1, "message": "Detected event", "image_path": "/path/to/image.jpg"}'
     ```
 
-4. **Get Camera Status**
+4. **Get camera status**
 
     ```bash
-    curl -X GET http://localhost:5000/camera_status
+    curl -X GET http://localhost:15440/camera_status
     ```
 
-5. **Get Real-time Image Stream**
+5. **Get real-time image stream**
 
     ```bash
-    curl -X GET http://localhost:5000/get_stream/1
+    curl -X GET http://localhost:15440/get_stream/1
     ```
 
-6. **Get Recognized Image Stream**
+6. **Get recognized real-time image stream**
 
     ```bash
-    curl -X GET http://localhost:5000/recognized_stream/1
+    curl -X GET http://localhost:15440/recognized_stream/1
     ```
 
-7. **Manage Rectangles (Focus Areas)**
+7. **Manage bounding boxes**
 
-    - Save rectangles:
+    - Save bounding boxes:
 
         ```bash
-        curl -X POST http://localhost:5000/rectangles/1 -H "Content-Type: application/json" -d '[{"x": 100, "y": 200, "width": 50, "height": 60}]'
+        curl -X POST http://localhost:15440/rectangles/1 -H "Content-Type: application/json" -d '[{"x": 100, "y": 200, "width": 50, "height": 60}]'
         ```
 
-    - Get all rectangles:
+    - Get all bounding boxes:
 
         ```bash
-        curl -X GET http://localhost:5000/rectangles/1
+        curl -X GET http://localhost:15440/rectangles/1
         ```
 
-    - Clear all rectangles:
+    - Clear all bounding boxes:
 
         ```bash
-        curl -X DELETE http://localhost:5000/rectangles/1
+        curl -X DELETE http://localhost:15440/rectangles/1
         ```
 
 ## Notes
 
-1. **Environment Variables**: Ensure that `DATABASE_URL`, `SECRET_KEY`, and `REDIS_URL` are correctly set in the `.env` file.
-2. **Database Migration**: After updating models, run `flask db migrate` and `flask db upgrade` to apply database migrations.
-3. **Redis Configuration**: Redis is used for managing image data storage and processing. Ensure that it is properly running and connected with worker nodes.
-4. **Docker**: Use Docker Compose to manage the start and stop of the application, especially when running multiple worker nodes.
-5. **Backup**: Regularly backup your PostgreSQL database and Redis data to prevent data loss.
+1. **Environment Variables**: If necessary, ensure that the `DATABASE_URL`, `SECRET_KEY`, and `REDIS_URL` are correctly set in the `.env` file. Default variables are hardcoded in the code, so you may skip this step and run the application directly.
+
+2. **Database Migration**: To update the database or add new tables, modify the models in `\web\models\`, then run `flask db migrate` and `flask db upgrade` to apply the changes.
+
+3. **Redis Configuration**: Use Redis to manage image storage and processing. Ensure it runs properly and is connected to the worker nodes.
+
+4. **Docker Management**: Use Docker Compose to manage the start and stop of the application, especially when using multiple worker nodes.
+
+5. **Data Backup**: Regularly back up your PostgreSQL database and Redis data to prevent data loss.
+
 6. **Model Path**: Replace the model with your own model (located in `\object_recognition\app.py`).
 
 ## License
@@ -507,6 +501,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Contributions & Contact
 
-If you have any questions or would like to contribute, please feel free to contact me. Your input is very valuable and will help improve this project. You can open an issue or submit a pull request on GitHub. Alternatively, you can reach me directly using the contact details below.
+If you have any questions or contributions, please feel free to contact me. Your input is very welcome and will help improve this project. You can open an issue or submit a pull request on GitHub. Alternatively, you can reach me directly via the contact details provided below.
 
-Contact: sky328423@gmail.com
+sky328423@gmail.com

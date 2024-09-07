@@ -1,4 +1,5 @@
 # VisionFlow
+[中](https://github.com/dan246/VisionFlow/blob/main/README.md)
 [EN](https://github.com/dan246/VisionFlow/blob/main/README_en.md)
 
 VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該專案使用 Flask 框架，並透過 PostgreSQL 作為資料庫進行資料管理。應用程式中整合了 Redis 來管理攝影機影像的處理與分配。所有環境均可使用 Docker 進行配置和管理。
@@ -42,47 +43,35 @@ VisionFlow 是一個後端應用程式，旨在處理影像辨識與通知系統
     cd VisionFlow
     ```
 
-2. 編寫 `.env` 文件來配置你的環境變數（選擇性）：
+2. 使用 Docker Compose 啟動服務：
 
     ```bash
-    touch .env
+    docker-compose -f docker-compose.yaml -f docker-compose-redis.yaml up -d
     ```
 
-    在 `.env` 文件中添加以下內容：
-
-    ```env
-    DATABASE_URL=postgresql://user:password@db:5432/vision_notify
-    SECRET_KEY=your_secret_key
-    REDIS_URL=redis://redis:6379/0
-    ```
-
-3. 使用 Docker Compose 啟動服務：
-
-    ```bash
-    docker-compose up --build
-    ```
-
-    這會自動下載所需的 Docker 映像，安裝依賴，並在 `http://localhost:5000` 上啟動 Flask 應用程式。
+    這會自動下載所需的 Docker image，安裝相關套件，並在 `http://localhost:5000` 上啟動 Flask 應用程式。
 
 4. 若需要遷移資料庫（在第一次運行或模型更新時執行）：
-
-    ```bash
-    docker-compose exec backend flask db upgrade
-    ```
+    1. 進入容器
+        ```bash
+        docker-compose exec -it backend 
+        ```
+    2. 進入後依照 update_db.txt 操作即可
 
 5. 若需要配置 Redis 與多個 worker 節點，請使用 `docker-compose-redis.yaml` 進行設置：
 
     ```bash
-    docker-compose -f docker-compose-redis.yaml up --build
+    docker-compose -f docker-compose-redis.yaml up -D
     ```
 
     這會啟動 Redis 服務與多個 worker 節點來處理影像辨識與攝影機分配工作。
 
+6. objectrecognition 須將模型替換為自己的模型URL，且檔案須為 best.pt(可設置多個模型網址，不用擔心 pt 模型被蓋掉)
 ## Redis 功能
 
 ### 影像處理
 
-VisionFlow 使用 Redis 來管理攝影機的影像資料流。攝影機的影像會被存儲到 Redis 中，並分配到不同的 worker 虛擬機進行處理。每個影像在辨識後會存儲為另一個 Redis key，以供後續使用。
+VisionFlow 使用 Redis 來管理攝影機的影像資料。攝影機的影像會被儲存到 Redis 中，並分配到不同的 worker 虛擬機進行處理。每個影像在辨識後會存儲為一個獨立的 Redis key，以供後續使用。
 
 1. **影像儲存與取得**:
    - 每個攝影機的最新影像會存儲在 Redis 中，使用 `camera_{camera_id}_latest_frame` 作為 key。
@@ -456,19 +445,19 @@ VisionFlow 使用 Redis 來管理攝影機的影像資料流。攝影機的影�
 4. **獲取攝影機狀態**
 
     ```bash
-    curl -X GET http://localhost:5000/camera_status
+    curl -X GET http://localhost:15440/camera_status
     ```
 
 5. **獲取攝影機即時影像流**
 
     ```bash
-    curl -X GET http://localhost:5000/get_stream/1
+    curl -X GET http://localhost:15440/get_stream/1
     ```
 
 6. **獲取辨識後的即時影像流**
 
     ```bash
-    curl -X GET http://localhost:5000/recognized_stream/1
+    curl -X GET http://localhost:15440/recognized_stream/1
     ```
 
 7. **管理矩形區域**
@@ -476,26 +465,28 @@ VisionFlow 使用 Redis 來管理攝影機的影像資料流。攝影機的影�
     - 儲存矩形區域：
 
         ```bash
-        curl -X POST http://localhost:5000/rectangles/1 -H "Content-Type: application/json" -d '[{"x": 100, "y": 200, "width": 50, "height": 60}]'
+        curl -X POST http://localhost:15440/rectangles/1 -H "Content-Type: application/json" -d '[{"x": 100, "y": 200, "width": 50, "height": 60}]'
         ```
 
     - 獲取所有矩形區域：
 
         ```bash
-        curl -X GET http://localhost:5000/rectangles/1
+        curl -X GET http://localhost:15440/rectangles/1
         ```
 
     - 清除所有矩形區域：
 
         ```bash
-        curl -X DELETE http://localhost:5000/rectangles/1
+        curl -X DELETE http://localhost:15440/rectangles/1
         ```
 
 ## 注意事項
 
-1. **環境變數**: 確保在 `.env` 文件中正確設置了 `DATABASE_URL`、`SECRET_KEY` 和 `REDIS_URL`。
-2. **資料庫遷移**: 每次更新模型後，請運行 `flask db migrate` 和 `flask db upgrade` 來應用資料庫遷移。
-3. **Redis 配置**: 使用 Redis 來管理影像資料的存儲與處理，確保其正常運行並與 worker 節點連接。
+1. **環境變數**: 如果有需要，請確保在 `.env` 文件中正確設置了 `DATABASE_URL`、`SECRET_KEY` 和 `REDIS_URL`，這裡直接將預設變數寫在 code 裡，所以也能跳過這步直接執行。
+
+2. **資料庫遷移**: 如需更新資料庫或新增資料表，修改完 \web\models\ 後，請執行 `flask db migrate` 和 `flask db upgrade` 來更新資料庫。
+
+3. **Redis 配置**: 使用 Redis 來管理影像資料的儲存與處理，確保其正常運行並與 worker 節點連接。
 4. **Docker 啟動**: 請使用 Docker Compose 來管理應用程式的啟動和停止，尤其是當需要啟動多個 worker 節點時。
 5. **資料備份**: 定期備份你的 PostgreSQL 資料庫與 Redis 資料以防止數據丟失。
 6. **模型路徑**: 模型請替換成自己的模型(位於\object_recognition\app.py)。

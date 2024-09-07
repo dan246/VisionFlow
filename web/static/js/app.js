@@ -1,7 +1,7 @@
 // app.js
 
-const apiUrl = "http://localhost:5000";  // 修改為你後端的URL
-
+const apiUrl = "http://localhost:5000";  // 後端的URL
+const streamapiUrl = "http://localhost:15440";  // 影片功能的URL
 // DOM Elements
 const loginFormElement = document.getElementById('loginFormElement');
 const registerFormElement = document.getElementById('registerFormElement');
@@ -25,7 +25,7 @@ function updateCameraList(cameras) {
   cameraListElement.innerHTML = '';
   cameraSelectElement.innerHTML = '';
 
-  cameras.forEach(camera => {
+  cameras.forEach((camera, index) => {
     const listItem = document.createElement('li');
     listItem.classList.add('list-group-item');
     listItem.textContent = `${camera.name} (${camera.stream_url})`;
@@ -36,7 +36,15 @@ function updateCameraList(cameras) {
     optionItem.textContent = camera.name;
     cameraSelectElement.appendChild(optionItem);
   });
+
+  // 自動選擇第一台攝影機
+  if (cameras.length > 0) {
+    cameraSelectElement.selectedIndex = 0;  // 選擇第一個選項
+    const firstCameraId = cameraSelectElement.value;
+    liveStreamImageElement.src = `${streamapiUrl}/get_stream/${firstCameraId}`;  // 自動加載第一台攝影機的影像
+  }
 }
+
 
 // API Calls
 function loginUser(username, password) {
@@ -114,5 +122,5 @@ addCameraFormElement.addEventListener('submit', (e) => {
 
 cameraSelectElement.addEventListener('change', (e) => {
   const cameraId = e.target.value;
-  liveStreamImageElement.src = `${apiUrl}/get_stream/${cameraId}`;
+  liveStreamImageElement.src = `${streamapiUrl}/get_stream/${cameraId}`;
 });
