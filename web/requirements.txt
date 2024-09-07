@@ -1,7 +1,7 @@
 Flask
 Flask-SQLAlchemy
 Flask-Migrate
-psycopg2
+psycopg2-binary
 requests
 flask_cors
 flask_migrate

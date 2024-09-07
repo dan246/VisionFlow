@@ -1,0 +1,7 @@
+設定路徑(有時容器沒有設定到，導致 Flask 無法找到正確的模組)
+export PYTHONPATH=/app
+
+========================================================
+flask db init
+flask db migrate
+flask db upgrade

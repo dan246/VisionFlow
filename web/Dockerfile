@@ -1,21 +1,22 @@
-FROM python:3.9-slim
+FROM python:3.11.8-slim-bullseye
 
 
+
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+# 更新 pip
+RUN pip install --upgrade pip
+
+# 複製當前目錄下的內容到容器中的/app目錄
+COPY . /app
+# 設定工作目錄
 WORKDIR /app
 
+# 安裝所需的 Python 庫
+RUN pip install -r requirements.txt
+RUN pip install opencv-python
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-
-COPY . .
-
-
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
-
-
+# # 暴露容器運行時的端口
 # EXPOSE 5000
-
-
-# CMD ["flask", "run", "--host=0.0.0.0"]

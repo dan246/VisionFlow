@@ -5,10 +5,7 @@ services:
   # # Database
   db:
     container_name: 'db'
-    # build:
-    #   context: ./
-    #   dockerfile: Dockerfile/dbDockerFile
-    image: postgres:13
+    image: postgres:15
     restart: always
     environment:
       POSTGRES_USER: user
@@ -17,22 +14,25 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./sqls:/docker-entrypoint-initdb.d/
       - ./db/:/var/lib/postgresql/data/
     networks:
       - service-networks
 
   # # 後台
   backend:
-    build: .
+    build:
+      context: ./web
+      dockerfile: Dockerfile
     restart: always
     environment:
       FLASK_APP: app.py
       FLASK_ENV: development
-    depends_on:
-      - db
+    volumes:
+      - ./web:/app
     ports:
       - "5000:5000"
+    # command: sh -c "flask run --no-debugger --host 0.0.0.0"
+    command: sh -c "sleep 100000"
     networks:
       - service-networks
 
@@ -54,7 +54,7 @@ services:
       - SERVERIP=http://backend:5000
     ports:
       - "15440:5000"
-    command: sh -c "flask run --no-debugger --host 0.0.0.0"
+    # command: sh -c "flask run --no-debugger --host 0.0.0.0"
     networks:
       - service-networks
 

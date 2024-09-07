@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app import db
+from extensions import db  # 從 extensions 導入 db
 from models.notification import Notification
 
 notification_bp = Blueprint('notification_bp', __name__)

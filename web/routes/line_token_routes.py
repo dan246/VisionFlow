@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app import db
+from extensions import db  # 從 extensions 導入 db
 from models.line_token import LineToken
 
 line_token_bp = Blueprint('line_token_bp', __name__)

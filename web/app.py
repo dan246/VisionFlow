@@ -1,29 +1,39 @@
 from flask import Flask, render_template
-from flask_sqlalchemy import SQLAlchemy
+# from config import Config
 from flask_migrate import Migrate
-from config import Config
 from flask_cors import CORS
+from extensions import db, migrate
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-app.config.from_object(Config)
+# app.config.from_object(Config)
 
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://user:password@db:5432/vision_notify'
+app.config['SECRET_KEY'] = 'your_secret_key'
 # Initialize extensions
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-CORS(app)  # Enabling CORS for cross-origin requests
+db.init_app(app)
+migrate.init_app(app, db)
+CORS(app)
 
-# Import and register blueprints
-from routes.auth_routes import auth_bp
-from routes.camera_routes import camera_bp
-from routes.notification_routes import notification_bp
-from routes.line_token_routes import line_token_bp
-from routes.email_recipient_routes import email_recipient_bp
+# Register blueprints within a function to avoid circular imports
+def register_blueprints(app):
+    from routes.auth_routes import auth_bp
+    from routes.camera_routes import camera_bp
+    from routes.notification_routes import notification_bp
+    from routes.line_token_routes import line_token_bp
+    from routes.email_recipient_routes import email_recipient_bp
 
-app.register_blueprint(auth_bp)
-app.register_blueprint(camera_bp)
-app.register_blueprint(notification_bp)
-app.register_blueprint(line_token_bp)
-app.register_blueprint(email_recipient_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(camera_bp)
+    app.register_blueprint(notification_bp)
+    app.register_blueprint(line_token_bp)
+    app.register_blueprint(email_recipient_bp)
+
+# Import models after db is initialized
+with app.app_context():
+    from models import *
+
+# Register blueprints after app is initialized
+register_blueprints(app)
 
 # Serve the index page
 @app.route('/')

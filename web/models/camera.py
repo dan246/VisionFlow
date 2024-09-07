@@ -1,4 +1,4 @@
-from app import db
+from extensions import db  # 從 extensions 導入 db
 
 class Camera(db.Model):
     id = db.Column(db.Integer, primary_key=True)
