@@ -29,7 +29,7 @@ class CameraManager:
     def fetch_and_update_cameras(self):
         self.clear_old_cameras()
 
-        url = f"{self.SERVERIP}/cameras"
+        url = f"{self.SERVERIP}/cameras/all"
         headers = {}
         response = requests.get(url, headers=headers)
         

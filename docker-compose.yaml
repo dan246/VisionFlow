@@ -31,8 +31,8 @@ services:
       - ./web:/app
     ports:
       - "5000:5000"
-    command: sh -c "python app.py"
-    # command: sh -c "sleep 100000"
+    # command: sh -c "python app.py"
+    command: sh -c "sleep 100000"
     networks:
       - service-networks
 
@@ -88,7 +88,7 @@ services:
               count: 1
               capabilities: [ gpu ]
     # command: sh -c "sleep 30666"
-    command: python app.py
+    # command: python app.py
     networks:
       - service-networks
 

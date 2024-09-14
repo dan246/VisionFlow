@@ -16,35 +16,23 @@
       <h2>Login</h2>
       <form id="loginFormElement">
         <div class="form-group">
-          <label for="username">Username</label>
+          <label for="loginUsername">Username</label>
           <input type="text" class="form-control" id="loginUsername" required>
         </div>
         <div class="form-group">
-          <label for="password">Password</label>
+          <label for="loginPassword">Password</label>
           <input type="password" class="form-control" id="loginPassword" required>
         </div>
         <button type="submit" class="btn btn-primary">Login</button>
       </form>
-    </div>
 
-    <!-- Register Form -->
-    <div id="registerForm" class="mt-5">
-      <h2>Register</h2>
-      <form id="registerFormElement">
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input type="text" class="form-control" id="registerUsername" required>
-        </div>
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" class="form-control" id="registerEmail" required>
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" class="form-control" id="registerPassword" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Register</button>
-      </form>
+      <!-- 顯示登入錯誤的地方 -->
+      <div id="loginError" class="alert alert-danger mt-3" style="display:none;"></div>
+
+      <!-- 註冊連結 -->
+      <div class="mt-3">
+        <a href="/register" target="_blank" class="btn btn-secondary">Register</a>
+      </div>
     </div>
 
     <!-- Dashboard -->
@@ -86,6 +74,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 登出按鈕 -->
+    <button id="logoutButton" class="btn btn-danger d-none">Logout</button>
   </div>
 
   <script src="/static/js/app.js"></script>

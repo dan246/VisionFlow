@@ -45,5 +45,10 @@ def index():
 def snapshot_ui(camera_id):
     return render_template('snapshot_ui.html', camera_id=camera_id)
 
+# Serve the register page
+@app.route('/register')
+def register():
+    return render_template('register.html')
+
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
