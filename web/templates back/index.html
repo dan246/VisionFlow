@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VisionFlow</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <div class="container mt-5">
+    <h1 class="text-center">VisionFlow</h1>
+
+    <!-- Login Form -->
+    <div id="loginForm" class="mt-5">
+      <h2>Login</h2>
+      <form id="loginFormElement">
+        <div class="form-group">
+          <label for="loginUsername">Username</label>
+          <input type="text" class="form-control" id="loginUsername" required>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" class="form-control" id="loginPassword" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Login</button>
+      </form>
+
+      <!-- 顯示登入錯誤的地方 -->
+      <div id="loginError" class="alert alert-danger mt-3" style="display:none;"></div>
+
+      <!-- 註冊連結 -->
+      <div class="mt-3">
+        <a href="/register" target="_blank" class="btn btn-secondary">Register</a>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="mt-5 d-none">
+      <h2>Camera Dashboard</h2>
+
+      <!-- Camera List -->
+      <div id="cameraList" class="mt-3">
+        <h3>Camera List</h3>
+        <ul id="cameraListItems" class="list-group"></ul>
+      </div>
+
+      <!-- Add New Camera -->
+      <div id="addCameraForm" class="mt-3">
+        <h3>Add New Camera</h3>
+        <form id="addCameraFormElement">
+          <div class="form-group">
+            <label for="cameraName">Camera Name</label>
+            <input type="text" class="form-control" id="cameraName" required>
+          </div>
+          <div class="form-group">
+            <label for="cameraURL">Camera URL</label>
+            <input type="text" class="form-control" id="cameraURL" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Camera</button>
+        </form>
+      </div>
+
+      <!-- Live Stream -->
+      <div id="liveStream" class="mt-5">
+        <h3>Live Stream</h3>
+        <div>
+          <label for="cameraSelect">Select Camera:</label>
+          <select id="cameraSelect" class="form-control"></select>
+        </div>
+        <div class="mt-3">
+          <h4>Stream</h4>
+          <img id="liveStreamImage" width="100%" height="400px" alt="Live Stream">
+        </div>
+      </div>
+    </div>
+
+    <!-- 登出按鈕 -->
+    <button id="logoutButton" class="btn btn-danger d-none">Logout</button>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

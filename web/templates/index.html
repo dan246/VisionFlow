@@ -1,84 +1,114 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VisionFlow</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VisionFlow 後台系統</title>
+  <!-- 引入 Bootstrap -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- 自訂樣式 -->
   <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-  <div class="container mt-5">
-    <h1 class="text-center">VisionFlow</h1>
 
-    <!-- Login Form -->
-    <div id="loginForm" class="mt-5">
-      <h2>Login</h2>
+  <!-- 主容器 -->
+  <div class="container">
+    <!-- 登入表單 -->
+    <div id="loginForm">
+      <h2>登入</h2>
       <form id="loginFormElement">
         <div class="form-group">
-          <label for="loginUsername">Username</label>
-          <input type="text" class="form-control" id="loginUsername" required>
+          <label for="loginUsername">使用者名稱</label>
+          <input type="text" class="form-control" id="loginUsername" placeholder="輸入使用者名稱" required>
         </div>
         <div class="form-group">
-          <label for="loginPassword">Password</label>
-          <input type="password" class="form-control" id="loginPassword" required>
+          <label for="loginPassword">密碼</label>
+          <input type="password" class="form-control" id="loginPassword" placeholder="輸入密碼" required>
         </div>
-        <button type="submit" class="btn btn-primary">Login</button>
+        <button type="submit" class="btn btn-primary btn-block">登入</button>
       </form>
 
-      <!-- 顯示登入錯誤的地方 -->
+      <!-- 登入錯誤訊息 -->
       <div id="loginError" class="alert alert-danger mt-3" style="display:none;"></div>
 
       <!-- 註冊連結 -->
-      <div class="mt-3">
-        <a href="/register" target="_blank" class="btn btn-secondary">Register</a>
-      </div>
+      <a href="/register" class="register-link">還沒有帳戶？立即註冊</a>
     </div>
 
     <!-- Dashboard -->
-    <div id="dashboard" class="mt-5 d-none">
-      <h2>Camera Dashboard</h2>
-
-      <!-- Camera List -->
-      <div id="cameraList" class="mt-3">
-        <h3>Camera List</h3>
-        <ul id="cameraListItems" class="list-group"></ul>
-      </div>
-
-      <!-- Add New Camera -->
-      <div id="addCameraForm" class="mt-3">
-        <h3>Add New Camera</h3>
-        <form id="addCameraFormElement">
-          <div class="form-group">
-            <label for="cameraName">Camera Name</label>
-            <input type="text" class="form-control" id="cameraName" required>
-          </div>
-          <div class="form-group">
-            <label for="cameraURL">Camera URL</label>
-            <input type="text" class="form-control" id="cameraURL" required>
-          </div>
-          <button type="submit" class="btn btn-primary">Add Camera</button>
-        </form>
-      </div>
-
-      <!-- Live Stream -->
-      <div id="liveStream" class="mt-5">
-        <h3>Live Stream</h3>
-        <div>
-          <label for="cameraSelect">Select Camera:</label>
-          <select id="cameraSelect" class="form-control"></select>
+    <div id="dashboard" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>攝影機儀表板</h2>
+        <div class="button-group">
+          <button id="manageCamerasButton" class="btn btn-primary">管理攝影機</button>
+          <button id="logoutButton" class="btn btn-danger">登出</button>
+          
         </div>
-        <div class="mt-3">
-          <h4>Stream</h4>
-          <img id="liveStreamImage" width="100%" height="400px" alt="Live Stream">
+      </div>
+
+      <div class="row">
+        <!-- 即時串流 -->
+        <div class="col-md-12">
+          <h4>即時串流</h4>
+          <div class="form-group">
+            <label for="cameraSelect">選擇攝影機：</label>
+            <select id="cameraSelect" class="form-control"></select>
+          </div>
+          <div class="mt-3">
+            <img id="liveStreamImage" class="img-fluid border" alt="直播流" src="">
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 登出按鈕 -->
-    <button id="logoutButton" class="btn btn-danger d-none">Logout</button>
+    <!-- 攝影機管理 -->
+    <div id="cameraManagement" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>攝影機管理</h2>
+        <div class="button-group">
+          <button id="backToDashboardButton" class="btn btn-secondary">返回儀表板</button>
+          <button id="logoutButtonManagement" class="btn btn-danger">登出</button>
+          
+        </div>
+      </div>
+
+      <!-- 攝影機列表 -->
+      <div class="row">
+        <div class="col-md-12">
+          <h4>攝影機列表</h4>
+          <ul id="cameraListItems" class="list-group mb-3"></ul>
+          <div id="cameraEmptyMessage" class="alert alert-info" style="display:none;">
+            無可用的攝影機，請新增攝影機。
+          </div>
+        </div>
+      </div>
+
+      <!-- 新增攝影機表單 -->
+      <div id="addCameraForm" class="mt-5">
+        <h4>新增攝影機</h4>
+        <form id="addCameraFormElement">
+          <div class="form-group">
+            <label for="newCameraName">攝影機名稱</label>
+            <input type="text" class="form-control" id="newCameraName" placeholder="輸入攝影機名稱" required>
+          </div>
+          <div class="form-group">
+            <label for="newCameraStreamUrl">串流 URL</label>
+            <input type="url" class="form-control" id="newCameraStreamUrl" placeholder="輸入串流 URL" required>
+          </div>
+          <button type="submit" class="btn btn-success btn-block">新增攝影機</button>
+        </form>
+        <div id="addCameraError" class="alert alert-danger mt-3" style="display:none;"></div>
+        <div id="addCameraSuccess" class="alert alert-success mt-3" style="display:none;"></div>
+      </div>
+    </div>
   </div>
 
+  <!-- 加載 JS -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

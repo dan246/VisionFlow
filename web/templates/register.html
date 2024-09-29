@@ -1,37 +1,51 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register - VisionFlow</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>註冊 - VisionFlow</title>
+  <!-- 引入 Bootstrap -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- 自訂樣式 -->
   <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-  <div class="container mt-5">
-    <h1 class="text-center">VisionFlow - Register</h1>
 
-    <!-- Register Form -->
-    <div id="registerForm" class="mt-5">
-      <h2>Register</h2>
+  <!-- 主容器 -->
+  <div class="container">
+    <!-- 註冊表單 -->
+    <div id="registerForm" class="register-container">
+      <h2>註冊帳戶</h2>
       <form id="registerFormElement">
         <div class="form-group">
-          <label for="registerUsername">Username</label>
-          <input type="text" class="form-control" id="registerUsername" required>
+          <label for="registerUsername">使用者名稱</label>
+          <input type="text" class="form-control" id="registerUsername" placeholder="輸入使用者名稱" required>
         </div>
         <div class="form-group">
-          <label for="registerEmail">Email</label>
-          <input type="email" class="form-control" id="registerEmail" required>
+          <label for="registerEmail">電子郵件</label>
+          <input type="email" class="form-control" id="registerEmail" placeholder="輸入電子郵件" required>
         </div>
         <div class="form-group">
-          <label for="registerPassword">Password</label>
-          <input type="password" class="form-control" id="registerPassword" required>
+          <label for="registerPassword">密碼</label>
+          <input type="password" class="form-control" id="registerPassword" placeholder="輸入密碼" required>
         </div>
-        <button type="submit" class="btn btn-primary">Register</button>
+        <button type="submit" class="btn btn-primary btn-block">註冊</button>
       </form>
+
+      <!-- 註冊成功或錯誤訊息 -->
+      <div id="registerMessage" class="alert mt-3" style="display:none;"></div>
+
+      <!-- 返回登入連結 -->
+      <a href="/" class="register-link">已經有帳戶？立即登入</a>
     </div>
   </div>
 
+  <!-- 加載 JS -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
   <script src="/static/js/register.js"></script>
 </body>
 </html>

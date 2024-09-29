@@ -29,15 +29,56 @@ def get_cameras(current_user):
 @token_required
 def add_camera(current_user):
     data = request.json
+
+    # 檢查必填字段
+    if not data.get('name') or not data.get('stream_url'):
+        return jsonify({'message': 'Name and stream_url are required.'}), 400
+
+    # 檢查攝影機名稱是否已存在
+    existing_camera = Camera.query.filter_by(user_id=current_user.id, name=data['name']).first()
+    if existing_camera:
+        return jsonify({'message': 'A camera with this name already exists.'}), 400
+
     new_camera = Camera(
         name=data['name'],
         stream_url=data['stream_url'],
         location=data.get('location'),
         user_id=current_user.id  # 將攝影機與當前用戶關聯
     )
-    db.session.add(new_camera)
-    db.session.commit()
-    return jsonify({'message': 'Camera added successfully'}), 201
+    try:
+        db.session.add(new_camera)
+        db.session.commit()
+        # 返回新增攝影機的詳細信息，包括 ID
+        return jsonify({
+            'message': 'Camera added successfully',
+            'id': new_camera.id,
+            'name': new_camera.name,
+            'stream_url': new_camera.stream_url,
+            'location': new_camera.location
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        # 檢查是否因為唯一約束違反導致的錯誤
+        if 'UNIQUE constraint' in str(e):
+            return jsonify({'message': 'A camera with this name already exists.'}), 400
+        return jsonify({'message': 'An error occurred while adding the camera.'}), 500
+
+
+# 新增的刪除攝影機路由
+@camera_bp.route('/cameras/<int:camera_id>', methods=['DELETE'])
+@token_required
+def delete_camera(current_user, camera_id):
+    camera = Camera.query.filter_by(id=camera_id, user_id=current_user.id).first()
+    if not camera:
+        return jsonify({'message': 'Camera not found or not authorized.'}), 404
+    
+    try:
+        db.session.delete(camera)
+        db.session.commit()
+        return jsonify({'message': 'Camera deleted successfully.'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'An error occurred while deleting the camera.'}), 500
 
 # 獲取所有攝影機（不分使用者，供 Redis 使用）
 @camera_bp.route('/cameras/all', methods=['GET'])
@@ -60,3 +101,4 @@ def get_all_users():
         'username': user.username,
         'email': user.email
     } for user in users]), 200
+

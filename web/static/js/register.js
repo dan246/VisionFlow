@@ -1,32 +1,41 @@
-const apiUrl = "http://localhost:5000";
-const registerFormElement = document.getElementById('registerFormElement');
+// register.js
 
-// 註冊表單的事件處理
-registerFormElement.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const username = document.getElementById('registerUsername').value;
-  const email = document.getElementById('registerEmail').value;
-  const password = document.getElementById('registerPassword').value;
+const apiUrl = "http://localhost:5000";  // 後端的URL
 
-  fetch(`${apiUrl}/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, email, password })
-  })
-  .then(response => {
-    if (!response.ok) {
-      return response.text().then(text => { throw new Error(text); });
+document.addEventListener('DOMContentLoaded', () => {
+  const registerForm = document.getElementById('registerFormElement');
+  const registerMessage = document.getElementById('registerMessage');
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById('registerUsername').value.trim();
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value.trim();
+
+    try {
+      const response = await fetch(`${apiUrl}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        registerMessage.className = 'alert alert-success';
+        registerMessage.textContent = '註冊成功！您現在可以登入。';
+        registerMessage.style.display = 'block';
+        registerForm.reset();
+      } else {
+        registerMessage.className = 'alert alert-danger';
+        registerMessage.textContent = data.message || '註冊失敗，請再試一次。';
+        registerMessage.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('註冊錯誤:', error);
+      registerMessage.className = 'alert alert-danger';
+      registerMessage.textContent = '發生意外錯誤，請稍後再試。';
+      registerMessage.style.display = 'block';
     }
-    return response.json();
-  })
-  .then(data => {
-    if (data.message === 'User registered successfully') {
-      alert('Registration successful!');
-      window.close();  // 註冊成功後關閉當前分頁
-    }
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    alert('Registration failed: ' + error.message);
   });
 });

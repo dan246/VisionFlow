@@ -1,39 +1,152 @@
-/* styles.css */
+/* 使用現代的字體與背景樣式 */
 body {
-  background-color: #f7f7f7;
-  font-family: Arial, sans-serif;
+  font-family: 'Roboto', sans-serif;
+  background-image: url('/static/images/login_backend.jpg'); /* 背景圖片路徑 */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
+/* 背景覆蓋層，確保內容可讀 */
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* 半透明黑色覆蓋層 */
+  z-index: -1;
+}
+
+/* 主容器樣式 */
 .container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
+  width: 90%;
+  max-width: 1000px; /* 增加最大寬度以容納更多內容 */
+  padding: 40px 30px;
+  background-color: rgba(255, 255, 255, 0.9); /* 半透明白色背景 */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  position: relative;
 }
 
-h1, h2 {
+/* 標題樣式 */
+h1, h2, h3, h4 {
+  color: #333333;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+
+/* 表單樣式 */
+.form-group label {
+  font-weight: 500;
+  color: #555555;
+}
+
+.form-control {
+  border-radius: 5px;
+  padding: 10px;
+}
+
+/* 按鈕樣式 */
+.btn {
+  border-radius: 25px;
+  padding: 10px 20px; /* 增加水平內邊距以避免按鈕過窄 */
+  font-weight: bold;
+}
+
+/* 修改按鈕群組樣式 */
+.button-group {
+  display: flex;
+  gap: 20px; /* 增加按鈕之間的間距 */
+}
+
+/* 針對登出與管理攝影機的樣式進行調整 */
+#logoutButton {
+  margin-right: 20px; /* 增加登出按鈕的右側距離 */
+}
+
+#manageCamerasButton {
+  margin-left: 20px; /* 增加管理攝影機按鈕的左側距離 */
+}
+
+/* 登入錯誤訊息樣式 */
+.alert {
+  border-radius: 8px;
+}
+
+/* 註冊連結樣式 */
+.register-link {
+  display: block;
   text-align: center;
+  margin-top: 15px;
+  color: #4a90e2;
+  text-decoration: none;
 }
 
-.form-group {
+.register-link:hover {
+  text-decoration: underline;
+}
+
+/* Dashboard 樣式 */
+#dashboard {
+  display: none;
+}
+
+#cameraListItems {
+  max-height: 500px; /* 增加最大高度以顯示更多攝影機 */
+  overflow-y: auto;
+}
+
+#liveStreamImage {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 新增攝影機表單樣式 */
+#addCameraForm {
+  margin-top: 30px;
+}
+
+#addCameraForm .form-group {
   margin-bottom: 15px;
 }
 
-input, button {
+#addCameraForm button {
   width: 100%;
 }
 
-button {
-  margin-top: 10px;
+/* 刪除按鈕樣式 */
+.delete-camera-btn {
+  margin-left: 10px;
 }
 
-#cameraList ul {
-  list-style: none;
-  padding: 0;
-}
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .container {
+    padding: 30px 20px;
+  }
 
-#cameraList ul li {
-  background-color: #e9ecef;
-  margin-bottom: 5px;
-  padding: 10px;
-  border-radius: 5px;
+  #cameraListItems {
+    max-height: 300px;
+  }
+
+  /* 調整按鈕群組在小螢幕下的佈局 */
+  .button-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .button-group .btn {
+    width: 100%;
+  }
 }
