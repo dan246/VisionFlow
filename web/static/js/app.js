@@ -305,7 +305,8 @@ function displayLiveStream(cameraId) {
     liveStreamImageElement.src = defaultGifUrl;
     return;
   }
-  liveStreamImageElement.src = `${streamApiUrl}/get_stream/${cameraId}`;
+  // liveStreamImageElement.src = `${streamApiUrl}/get_stream/${cameraId}`;
+  liveStreamImageElement.src = `${streamApiUrl}/recognized_stream/${cameraId}`;
 }
 
 // 攝影機選擇更改的事件處理器（儀表板）
@@ -358,6 +359,114 @@ addCameraFormElement.addEventListener('submit', (e) => {
     addCameraSuccessElement.style.display = 'none';
   });
 });
+
+// 更新攝影機表單的事件處理
+updateCameraFormElement.addEventListener('submit', (e) => {
+  e.preventDefault();
+  
+  const cameraId = document.getElementById('updateCameraSelect').value;
+  const cameraName = document.getElementById('updateCameraName').value.trim();
+  const cameraStreamUrl = document.getElementById('updateCameraStreamUrl').value.trim();
+  const recognitionModel = document.getElementById('updateCameraRecognition').value.trim();  // 模型名稱
+  
+  const updatedData = {};
+  if (cameraName) updatedData.name = cameraName;
+  if (cameraStreamUrl) updatedData.stream_url = cameraStreamUrl;
+  if (recognitionModel) updatedData.recognition = recognitionModel;  // 模型名稱加入更新資料
+
+  fetch(`${apiUrl}/cameras/${cameraId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify(updatedData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.id) {
+      // 更新成功時顯示成功訊息
+      updateCameraSuccessElement.textContent = '攝影機更新成功！';
+      updateCameraSuccessElement.style.display = 'block';
+      updateCameraErrorElement.style.display = 'none';
+      
+      // 清空表單
+      updateCameraFormElement.reset();
+
+      // 延遲1秒刷新攝影機列表，讓使用者看到最新資訊
+      setTimeout(() => {
+        loadCamerasManagement();  // 重新加載攝影機列表
+      }, 1000);
+      
+    } else if (data.message) {
+      // 如果後端返回錯誤訊息，顯示錯誤訊息
+      updateCameraErrorElement.textContent = data.message;
+      updateCameraErrorElement.style.display = 'block';
+      updateCameraSuccessElement.style.display = 'none';
+    }
+  })
+  .catch(error => {
+    // 捕捉意外錯誤並顯示錯誤訊息
+    console.error('Error updating camera:', error);
+    updateCameraErrorElement.textContent = '發生意外錯誤，請稍後再試。';
+    updateCameraErrorElement.style.display = 'block';
+    updateCameraSuccessElement.style.display = 'none';
+  });
+});
+
+// 更新攝影機選擇列表
+function updateCameraSelectForUpdate(cameras) {
+  const updateCameraSelectElement = document.getElementById('updateCameraSelect');
+  updateCameraSelectElement.innerHTML = '';
+
+  if (cameras.length === 0) {
+    updateCameraSelectElement.innerHTML = '<option value="">無可選擇的攝影機</option>';
+    return;
+  }
+
+  cameras.forEach((camera) => {
+    const option = document.createElement('option');
+    option.value = camera.id;
+    option.textContent = camera.name;
+    updateCameraSelectElement.appendChild(option);
+  });
+}
+
+// 在攝影機管理介面加載時更新可選攝影機列表
+function loadCamerasManagement() {
+  fetch(`${apiUrl}/cameras`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  })
+  .then(response => {
+    if (response.status === 401) {
+      // 如果返回 401，嘗試刷新 accessToken
+      return refreshAccessToken().then(() => {
+        // 成功刷新 token 後，重試加載攝影機列表
+        return fetch(`${apiUrl}/cameras`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+      });
+    }
+    return response;
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log("Cameras data received for management:", data);  // 調試攝影機數據
+    updateCameraList(data);  // 更新攝影機列表（刪除功能）
+    updateCameraSelectForUpdate(data);  // 更新可選攝影機（更新功能）
+  })
+  .catch(error => {
+    console.error('Error loading cameras for management:', error);
+    if (error.includes('Unauthorized')) {
+      logoutUser();
+      alert('Session expired, please log in again.');
+    }
+  });
+}
 
 // 刪除攝影機的函數
 function deleteCamera(cameraId) {

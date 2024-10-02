@@ -1,38 +1,48 @@
 import logging
 import asyncio
-import cv2
 import time
 import datetime
-import numpy as np
 import os
-from PIL import Image, ImageDraw, ImageFont
 from tempfile import NamedTemporaryFile
-import redis
-from YOLOModel import YOLOModel
-from ApiService import ApiService
-from send_mail import MailService
-from send_line import LineService
-from image_storage import ImageStorage
-import aiohttp
-from logging_config import configure_logging
 
+import cv2
+import numpy as np
+import redis
+from PIL import Image, ImageDraw, ImageFont
+import aiohttp
+
+# 第三方套件
+import supervision as sv
+from supervision.draw.color import Color
+from ultralytics import YOLO
+
+# 本地套件
+from ApiService import ApiService
+from image_storage import ImageStorage
+from logging_config import configure_logging
+from model_config import MODEL_CONFIG
 
 class MainApp:
     def __init__(self):
-        configure_logging()  # 配置 logging
+        configure_logging()  # 設定日誌
         self.logger = logging.getLogger('MainApp')
         self.time_logger = logging.getLogger('TimeLogger')
-        self.redis_host = 'localhost'
+
+        self.redis_host = 'redis'
         self.redis_port = 6379
         self.r = redis.Redis(host=self.redis_host, port=self.redis_port, db=0)
-        self.mail_service = MailService()
-        self.line_service = LineService()
         self.image_storage = ImageStorage(self.r)
+
         self.init_dirs()
         self.init_models()
+
         self.api_service = ApiService(base_url=os.getenv("API_SERVICE_URL"))
         self.last_sent_timestamps = {}
-        self.SLEEP_INTERVAL = 0
+        self.SLEEP_INTERVAL = 0.1  # 設定合理的休眠間隔
+
+        # 新增以下兩行
+        self.trackers = {}
+        self.trace_annotators = {}
 
     def init_dirs(self):
         start_time = time.time()
@@ -40,33 +50,99 @@ class MainApp:
         self.RAW_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "raw_images")
         self.ANNOTATED_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "annotated_images")
         self.STREAM_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "stream")
-        for dir_path in [self.RAW_SAVE_DIR, self.ANNOTATED_SAVE_DIR, self.STREAM_SAVE_DIR]:
+
+        for dir_path in [
+            self.RAW_SAVE_DIR,
+            self.ANNOTATED_SAVE_DIR,
+            self.STREAM_SAVE_DIR,
+        ]:
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
-        self.time_logger.info(f"Directories initialized in {time.time() - start_time:.2f} seconds")
+
+        self.time_logger.info(
+            f"Directories initialized in {time.time() - start_time:.2f} seconds"
+        )
 
     def init_models(self):
         start_time = time.time()
-        model_urls = {
-            "model1": ["https://example.com/path/to/model1.pt"],
-            "model2": ["https://example.com/path/to/model2.pt"],
-            "model3": ["https://example.com/path/to/model3.pt"]
-        }
+        # 從 MODEL_CONFIG 加載模型並初始化標註器
+        self.models = {}      # 用於存放模型的字典
+        self.annotators = {}  # 用於存放各模型的標註器
 
-        self.model1 = YOLOModel(model_urls["model1"])
-        self.model2 = YOLOModel(model_urls["model2"])
-        self.model3 = YOLOModel(model_urls["model3"])
-        self.time_logger.info(f"Models initialized in {time.time() - start_time:.2f} seconds")
+        for model_name, config in MODEL_CONFIG.items():
+            model_paths = config["path"]
+            # 目前假設使用第一個路徑
+            model_path = model_paths[0]
+            # 使用 ultralytics YOLO 加載模型
+            self.models[model_name] = YOLO(model_path)
+            self.logger.info(f"Model {model_name} loaded from {model_path}")
+
+            # 初始化標註器
+            annotators_config = config.get("annotators", {})
+            annotators = {}
+
+            for annotator_name, annotator_settings in annotators_config.items():
+                annotator_type = annotator_settings.get("type")
+                if annotator_type == "BoxAnnotator":
+                    # 初始化 BoxAnnotator
+                    thickness = annotator_settings.get("thickness", 2)
+                    color = annotator_settings.get("color", None)
+                    if color:
+                        annotators[annotator_name] = sv.BoxAnnotator(
+                            thickness=thickness,
+                            color=color
+                        )
+                    else:
+                        annotators[annotator_name] = sv.BoxAnnotator(
+                            thickness=thickness
+                        )
+                elif annotator_type == "RoundBoxAnnotator":
+                    # 初始化 RoundBoxAnnotator
+                    thickness = annotator_settings.get("thickness", 2)
+                    color = annotator_settings.get("color", None)
+                    if color:
+                        annotators[annotator_name] = sv.RoundBoxAnnotator(
+                            thickness=thickness,
+                            color=color
+                        )
+                    else:
+                        annotators[annotator_name] = sv.RoundBoxAnnotator(
+                            thickness=thickness
+                        )
+                elif annotator_type == "LabelAnnotator":
+                    # 初始化 LabelAnnotator
+                    text_position = annotator_settings.get("text_position", "TOP_CENTER")
+                    text_thickness = annotator_settings.get("text_thickness", 2)
+                    text_scale = annotator_settings.get("text_scale", 1)
+                    position = getattr(sv.Position, text_position)
+                    annotators[annotator_name] = sv.LabelAnnotator(
+                        text_position=position,
+                        text_thickness=text_thickness,
+                        text_scale=text_scale
+                    )
+                else:
+                    self.logger.warning(f"Unknown annotator type: {annotator_type}")
+            # 不需要在這裡初始化 TraceAnnotator，因為它需要為每個攝影機單獨管理
+            self.annotators[model_name] = annotators
+
+        self.time_logger.info(
+            f"Models and annotators initialized in {time.time() - start_time:.2f} seconds"
+        )
 
     async def fetch_camera_status(self, session):
         start_time = time.time()
         try:
-            async with session.get(f"{os.getenv('CAMERA_SERVICE_URL')}/camera_status") as response:
+            async with session.get(
+                f"{os.getenv('CAMERA_SERVICE_URL')}/camera_status"
+            ) as response:
                 if response.status == 200:
                     camera_status = await response.json()
+                    self.logger.debug(f"Fetched camera_status: {camera_status}")
                     return camera_status
                 else:
-                    self.logger.error(f"Failed to fetch camera status, HTTP status: {response.status}")
+                    self.logger.error(
+                        f"Failed to fetch camera status, HTTP status: {response.status}"
+                    )
                     return {}
         except Exception as e:
             self.logger.error(f"Error fetching camera status: {str(e)}")
@@ -75,188 +151,267 @@ class MainApp:
     async def fetch_rectangles(self, session, camera_id):
         start_time = time.time()
         try:
-            async with session.get(f"{os.getenv('CAMERA_SERVICE_URL')}/rectangles/{camera_id}") as response:
+            async with session.get(
+                f"{os.getenv('CAMERA_SERVICE_URL')}/rectangles/{camera_id}"
+            ) as response:
                 if response.status == 200:
                     rectangles = await response.json()
-                    self.time_logger.info(f"Rectangles received for camera {camera_id} in {time.time() - start_time:.2f} seconds")
+                    self.time_logger.info(
+                        f"Rectangles received for camera {camera_id} in {time.time() - start_time:.2f} seconds"
+                    )
                     return rectangles
                 else:
-                    self.logger.error(f"Failed to fetch rectangles for camera {camera_id}, HTTP status: {response.status}")
+                    self.logger.error(
+                        f"Failed to fetch rectangles for camera {camera_id}, HTTP status: {response.status}"
+                    )
                     return []
         except Exception as e:
-            self.logger.error(f"Error fetching rectangles for camera {camera_id}: {str(e)}")
+            self.logger.error(
+                f"Error fetching rectangles for camera {camera_id}: {str(e)}"
+            )
             return []
 
     async def fetch_snapshot(self, session, camera_id):
         start_time = time.time()
         redis_key = f"camera_{camera_id}_latest_frame"
-        image = self.image_storage.fetch_image(redis_key)
-        self.time_logger.info(f"Snapshot for camera {camera_id} fetched in {time.time() - start_time:.2f} seconds")
+
+        # 使用執行緒池來執行阻塞的同步函數
+        loop = asyncio.get_event_loop()
+        image = await loop.run_in_executor(None, self.image_storage.fetch_image, redis_key)
+
+        self.time_logger.info(
+            f"Snapshot for camera {camera_id} fetched in {time.time() - start_time:.2f} seconds"
+        )
         return image
 
-    def call_model(self, imagesid, images, rectangles_list, camera_ids, model_type, camera_list_by_id):
+    async def process_camera(self, session, camera_id, camera_info, model_camera_ids):
+        """
+        處理單個攝影機的圖像獲取和辨識
+        """
+        # 檢查攝影機狀態
+        img = await self.fetch_snapshot(session, camera_id)
+        rectangles = await self.fetch_rectangles(session, camera_id)
+        if img is not None:
+            self.logger.info(f"Image from camera {camera_id} ready for processing")
+
+            # 根據攝影機的模型類型進行辨識
+            for model_type in model_camera_ids:
+                if camera_id in model_camera_ids[model_type]:
+                    self.call_model_single(
+                        camera_id,
+                        img,
+                        rectangles,
+                        model_type,
+                        camera_info
+                    )
+        else:
+            self.logger.warning(f"No image fetched for camera {camera_id}")
+
+    def call_model_single(self, camera_id, image, rectangles, model_type, camera_info):
+        """
+        單獨處理一個攝影機的圖像進行模型辨識
+        """
         start_time = time.time()
         notify_message = {
-            "model1": "Model 1 Detection",
-            "model2": "Model 2 Detection",
-            "model3": "Model 3 Detection"
+            "model1": "模型1檢測",
+            "model2": "模型2檢測",
+            "model3": "模型3檢測",
         }
 
-        pairs = [(id, img, rect) for id, img, rect in zip(imagesid, images, rectangles_list) if id in camera_ids]
-        if pairs:
-            imagesid, images, rectangles_list = zip(*pairs)
-        else:
-            return [], [], []
+        model = self.models[model_type]
+        model_config = MODEL_CONFIG[model_type]
+        target_labels = list(model_config["label_conf"].keys())
 
-        model_map = {
-            "model1": self.model1,
-            "model2": self.model2,
-            "model3": self.model3
-        }
+        # 初始化追蹤器和標註器
+        if model_type not in self.trackers:
+            self.trackers[model_type] = {}
+        if camera_id not in self.trackers[model_type]:
+            self.trackers[model_type][camera_id] = sv.ByteTrack()
+        tracker = self.trackers[model_type][camera_id]
 
-        model = model_map[model_type]
+        if model_type not in self.trace_annotators:
+            self.trace_annotators[model_type] = {}
+        if camera_id not in self.trace_annotators[model_type]:
+            self.trace_annotators[model_type][camera_id] = sv.TraceAnnotator()
+        trace_annotator = self.trace_annotators[model_type][camera_id]
 
-        self.logger.info(f"Processing {len(images)} images for {model_type} detection")
-        all_data = model.predict(images)
-        
-        # 替換顯示的標籤為通用名稱
-        target_labels = ["Label A", "Label B", "Label C", "Label D"]
+        # 執行模型預測
+        results = model.predict(image, conf=model_config["conf"])
+        # 轉換為 supervision 的 Detections 格式
+        detections = sv.Detections.from_ultralytics(results[0])
 
-        for id, data_lists, image, rectangles in zip(imagesid, all_data, images, rectangles_list):
-            timestamp = time.time()
-            raw_img_path = os.path.join(self.RAW_SAVE_DIR, f'{id}_{timestamp}.jpg')
-            cv2.imwrite(raw_img_path, image)
-            self.logger.info(f"Raw image saved to {raw_img_path}")
+        # 更新追蹤器
+        detections = tracker.update_with_detections(detections)
 
-            annotated_image, detection_flag, label = self.annotate_image(image, data_lists, rectangles, model.model_names, target_labels, camera_list_by_id[id])
-            self.save_and_notify(id, annotated_image, timestamp, camera_list_by_id, model_type, notify_message, detection_flag, label)
+        # 根據 target_labels 過濾結果
+        labels = [model.names[int(class_id)] for class_id in detections.class_id]
+        filtered_indices = [
+            i for i, label in enumerate(labels) if label in target_labels
+        ]
+        filtered_detections = detections[filtered_indices]
 
-        self.time_logger.info(f"Model {model_type} processing completed in {time.time() - start_time:.2f} seconds")
-        return imagesid, images, all_data
+        # 標註圖像
+        annotated_image, detection_flag, label = self.annotate_image(
+            image,
+            filtered_detections,
+            rectangles,
+            model.names,
+            camera_info,
+            model_type,
+            trace_annotator
+        )
+        # 保存和通知
+        timestamp = time.time()
+        self.save_and_notify(
+            camera_id,
+            annotated_image,
+            timestamp,
+            camera_info,
+            model_type,
+            notify_message,
+            detection_flag,
+            label,
+        )
 
-    def annotate_image(self, image, data_lists, rectangles, model_names, target_labels, camera_info):
+        self.time_logger.info(
+            f"Model {model_type} processing for camera {camera_id} completed in {time.time() - start_time:.2f} seconds"
+        )
+
+    def annotate_image(
+        self, image, detections, rectangles, model_names, camera_info, model_name, trace_annotator
+    ):
         annotated_image = image.copy()
-        pil_img = Image.fromarray(cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB))
-        draw = ImageDraw.Draw(pil_img)
-        font = ImageFont.truetype("simsun.ttc", 20)
+        # 獲取該模型的標註器
+        annotators = self.annotators.get(model_name, {})
+        box_annotator = annotators.get("box_annotator")
+        label_annotator = annotators.get("label_annotator")
+        # 生成標籤
+        if detections.tracker_id is not None:
+            labels = [
+                f"#{tracker_id} {model_names[int(class_id)]} {confidence:.2f}"
+                for tracker_id, class_id, confidence in zip(
+                    detections.tracker_id, detections.class_id, detections.confidence
+                )
+            ]
+        else:
+            labels = [
+                f"{model_names[int(class_id)]} {confidence:.2f}"
+                for class_id, confidence in zip(
+                    detections.class_id, detections.confidence
+                )
+            ]
 
-        detection_flag = False
-        label = ""
+        # 如果有檢測結果，設定 detection_flag 為 True
+        detection_flag = len(detections) > 0
+        label = ", ".join(labels) if labels else ""
 
-        for data_list, model_name in zip(data_lists, model_names):
-            for inf in data_list:
-                for boxe in inf.boxes:
-                    for cls, conf in zip(boxe.cls, boxe.conf):
-                        if conf < 0.5:
-                            continue
-                        class_name = model_name[int(cls)]
-                        if class_name not in target_labels:
-                            continue
-                        detection_flag = True
-                        x1, y1, x2, y2 = map(int, boxe.xyxy[0])
-                        label = f'{class_name} {conf:.2f}'
-                        self.draw_detection(draw, pil_img, label, x1, y1, x2, y2, font)
+        # 使用標註器在圖像上繪製邊框和標籤
+        if box_annotator:
+            annotated_image = box_annotator.annotate(
+                scene=annotated_image, detections=detections
+            )
+        if label_annotator:
+            annotated_image = label_annotator.annotate(
+                scene=annotated_image, detections=detections, labels=labels
+            )
+        # 使用 TraceAnnotator
+        if trace_annotator:
+            annotated_image = trace_annotator.annotate(
+                scene=annotated_image,
+                detections=detections
+            )
 
-        return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR), detection_flag, label
+        return annotated_image, detection_flag, label
 
-    def draw_detection(self, draw, pil_img, label, x1, y1, x2, y2, font):
-        draw.rectangle([(x1, y1), (x2, y2)], outline="green", width=2)
-        text_size = font.getbbox(label)
-        text_background = Image.new('RGB', (text_size[2] - text_size[0], text_size[3] - text_size[1]), color='green')
-        draw_text_background = ImageDraw.Draw(text_background)
-        draw_text_background.text((0, 0), label, font=font, fill='white')
-        pil_img.paste(text_background, (x1, y1 - (text_size[3] - text_size[1])))
-
-    def save_and_notify(self, id, annotated_image, timestamp, camera_list_by_id, model_type, notify_message, detection_flag, label):
+    def save_and_notify(
+        self,
+        camera_id,
+        annotated_image,
+        timestamp,
+        camera_info,
+        model_type,
+        notify_message,
+        detection_flag,
+        label,
+    ):
         start_time = time.time()
-        annotated_img_path = os.path.join(self.ANNOTATED_SAVE_DIR, f'{id}_{timestamp}.jpg')
+        annotated_img_path = os.path.join(
+            self.ANNOTATED_SAVE_DIR, f"{camera_id}_{timestamp}.jpg"
+        )
         cv2.imwrite(annotated_img_path, annotated_image)
         self.logger.info(f"Annotated image saved to {annotated_img_path}")
 
-        # Save the latest image to stream directory
-        stream_img_path = os.path.join(self.STREAM_SAVE_DIR, f'{id}.jpg')
-        cv2.imwrite(stream_img_path, annotated_image, [cv2.IMWRITE_JPEG_QUALITY, 70])
-        self.logger.info(f"Latest image (with or without annotations) saved to {stream_img_path} for camera {id}")
-        redis_key = f"camera_{id}_boxed_image"
+        # 將最新的圖像保存到串流媒體目錄
+        stream_img_path = os.path.join(self.STREAM_SAVE_DIR, f"{camera_id}.jpg")
+        cv2.imwrite(
+            stream_img_path, annotated_image, [cv2.IMWRITE_JPEG_QUALITY, 70]
+        )
+        self.logger.info(
+            f"Latest image (with or without annotations) saved to {stream_img_path} for camera {camera_id}"
+        )
+        redis_key = f"camera_{camera_id}_boxed_image"
         self.image_storage.save_image(redis_key, annotated_image)
 
-        # 通報邏輯
-        if detection_flag:
-            current_time = datetime.datetime.now()
-            camera_info = camera_list_by_id[id]
-            account_uuid = camera_info['account_uuid']
-            camera_name = camera_info['camera_name']
-
-            # 找到相關聯的郵件和LINE tokens
-            mail_recipients = [mail['email'] for mail in self.mail_service.mail_list if mail['account_uuid'] == account_uuid]
-            line_tokens = [line['line_token'] for line in self.line_service.line_ids if line['account_uuid'] == account_uuid]
-
-            utc_datetime = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
-            adjusted_time = utc_datetime + datetime.timedelta(hours=8)
-            detection_time = adjusted_time.strftime('%Y-%m-%d %H:%M:%S')
-
-            title = notify_message[model_type]
-
-            # 建立完整的訊息內容
-            message_content = (
-                f"title: {title}\n"
-                f"Camera Name: {camera_name}\n"
-                f"Event Detected: {label}\n"
-                f"Detection Time: {detection_time}\n"
-            )
-
-            # 發送郵件和LINE通知
-            if id not in self.last_sent_timestamps or (current_time - self.last_sent_timestamps[id]).total_seconds() >= 60:
-                # 發送郵件
-                for mail in mail_recipients:
-                    self.mail_service.sendMailMessage(mail, message_content, annotated_img_path)
-
-                # 發送LINE通知
-                for token in line_tokens:
-                    self.line_service.sendLineNotifyMessage(token, message_content, annotated_img_path)
-
-                self.last_sent_timestamps[id] = current_time
-            self.logger.info(f"Notification sent: {message_content}")
-
-        self.time_logger.info(f"Save and notify completed in {time.time() - start_time:.2f} seconds")
+        self.time_logger.info(
+            f"Save and notify completed in {time.time() - start_time:.2f} seconds"
+        )
 
     async def main_loop(self):
         async with aiohttp.ClientSession() as session:
-            last_timestamps = {}
-            show_image_list = {}
             while True:
                 start_time = time.time()
                 self.logger.info("Checking cameras...")
-                images, imagesid, rectangles_list = [], [], []
-                
+
+                # 取得攝影機列表
                 camera_list = self.api_service.get_camera_list()
-                camera_list_by_id = {camera['id']: camera for camera in camera_list}
-                model1_camera_ids, model2_camera_ids, model3_camera_ids = [], [], []
+                if not camera_list:
+                    self.logger.warning("No cameras found")
+                    await asyncio.sleep(self.SLEEP_INTERVAL)
+                    continue
+                else:
+                    self.logger.debug(f"Camera list: {camera_list}")
+
+                camera_list_by_id = {int(camera["id"]): camera for camera in camera_list}
+                model_camera_ids = {
+                    "model1": [],
+                    "model2": [],
+                    "model3": []
+                }
                 for camera in camera_list:
-                    if camera['recognition'] == "model1":
-                        model1_camera_ids.append(camera['id'])
-                    elif camera['recognition'] == "model2":
-                        model2_camera_ids.append(camera['id'])
-                    elif camera['recognition'] == "model3":
-                        model3_camera_ids.append(camera['id'])
+                    camera_id = int(camera["id"])
+                    recognition_model = camera.get("recognition")
+                    if recognition_model in model_camera_ids:
+                        model_camera_ids[recognition_model].append(camera_id)
+
+                # 取得攝影機狀態
                 camera_status = await self.fetch_camera_status(session)
-                for camera_id, status in camera_status.items():
-                    if status['alive'] == "True" and status['last_image_timestamp']:
-                        img = await self.fetch_snapshot(session, camera_id)
-                        rectangles = await self.fetch_rectangles(session, camera_id)
-                        if img is not None:
-                            images.append(img)
-                            imagesid.append(int(camera_id))
-                            rectangles_list.append(rectangles)
-                            show_image_list[int(camera_id)] = img
-                            self.logger.info(f"Image from camera {camera_id} ready for processing")
-                            last_timestamps[camera_id] = status['last_image_timestamp']
-                self.call_model(imagesid, images, rectangles_list, model1_camera_ids, "model1", camera_list_by_id)
-                self.call_model(imagesid, images, rectangles_list, model2_camera_ids, "model2", camera_list_by_id)
-                self.call_model(imagesid, images, rectangles_list, model3_camera_ids, "model3", camera_list_by_id)
+                if not camera_status:
+                    self.logger.warning("No camera status received")
+                    await asyncio.sleep(self.SLEEP_INTERVAL)
+                    continue
+                else:
+                    self.logger.debug(f"Camera status: {camera_status}")
+
+                # 建立任務列表，同時處理所有攝影機
+                tasks = []
+                for camera_id_str, status in camera_status.items():
+                    camera_id = int(camera_id_str)
+                    if status["alive"] == "True" and status["last_image_timestamp"]:
+                        camera_info = camera_list_by_id.get(camera_id)
+                        if camera_info:
+                            tasks.append(
+                                self.process_camera(session, camera_id, camera_info, model_camera_ids)
+                            )
+
+                if tasks:
+                    await asyncio.gather(*tasks)
+                else:
+                    self.logger.warning("No cameras to process.")
+
                 await asyncio.sleep(self.SLEEP_INTERVAL)
-                if len(images)>0:
-                   self.time_logger.info(f"Processing completed in {time.time() - start_time:.2f} seconds")
+                self.time_logger.info(
+                    f"Processing completed in {time.time() - start_time:.2f} seconds"
+                )
 
 if __name__ == "__main__":
     app = MainApp()

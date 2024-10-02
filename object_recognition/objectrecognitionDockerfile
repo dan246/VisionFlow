@@ -19,5 +19,5 @@ RUN pip install --no-cache-dir numpy transformers  soundfile SpeechRecognition
 RUN conda install pyaudio -y
 RUN pip install tqdm 
 RUN pip install ultralytics==8.2.23 --no-deps 
-RUN pip install opencv-python-headless aiohttp matplotlib pandas datasets timm flask opencv-python redis
+RUN pip install opencv-python-headless aiohttp matplotlib pandas datasets timm flask opencv-python redis supervision
 USER ubuntu

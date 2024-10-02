@@ -1,6 +1,6 @@
 # VisionFlow
-[中](https://github.com/dan246/VisionFlow/blob/main/README.md)
-[EN](https://github.com/dan246/VisionFlow/blob/main/README_en.md)
+
+[中](https://github.com/dan246/VisionFlow/blob/main/README.md) | [EN](https://github.com/dan246/VisionFlow/blob/main/README_en.md)
 
 VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該專案使用 Flask 框架，並透過 PostgreSQL 作為資料庫進行資料管理。應用程式中整合了 Redis 來管理攝影機影像的處理與分配。所有環境均可使用 Docker 進行配置和管理。
 
@@ -11,6 +11,9 @@ VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該
   - [先決條件](#先決條件)
   - [設置步驟](#設置步驟)
 - [Redis 功能](#redis-功能)
+  - [影像處理](#影像處理)
+  - [影像辨識與標註](#影像辨識與標註)
+  - [攝影機分配](#攝影機分配)
 - [API 說明](#api-說明)
   - [使用者認證 API](#使用者認證-api)
   - [攝影機管理 API](#攝影機管理-api)
@@ -20,6 +23,9 @@ VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該
   - [影像處理與流媒體 API](#影像處理與流媒體-api)
 - [使用範例](#使用範例)
 - [注意事項](#注意事項)
+- [License](#license)
+- [Contributions & Contact](#contributions--contact)
+- [參考資料](#參考資料)
 
 ## 專案介紹
 
@@ -51,22 +57,23 @@ VisionFlow 是一個後端應用程式，旨在處理影像辨識與通知系統
 
     這會自動下載所需的 Docker image，安裝相關套件，並在 `http://localhost:5000` 上啟動 Flask 應用程式。
 
-4. 若需要遷移資料庫（在第一次運行或模型更新時執行）：
+3. 若需要遷移資料庫（在第一次運行或模型更新時執行）：
     1. 進入容器
         ```bash
         docker-compose exec -it backend 
         ```
-    2. 進入後依照 update_db.txt 操作即可
+    2. 進入後依照 `update_db.txt` 操作即可
 
-5. 若需要配置 Redis 與多個 worker 節點，請使用 `docker-compose-redis.yaml` 進行設置：
+4. 若需要配置 Redis 與多個 worker 節點，請使用 `docker-compose-redis.yaml` 進行設置：
 
     ```bash
-    docker-compose -f docker-compose-redis.yaml up -D
+    docker-compose -f docker-compose-redis.yaml up -d
     ```
 
     這會啟動 Redis 服務與多個 worker 節點來處理影像辨識與攝影機分配工作。
 
-6. objectrecognition 須將模型替換為自己的模型URL，且檔案須為 best.pt(可設置多個模型網址，不用擔心 pt 模型被蓋掉)
+5. `objectrecognition` 須將模型替換為自己的模型 URL，且檔案須為 `best.pt`（可設置多個模型網址，不用擔心 `.pt` 模型被覆蓋）
+
 ## Redis 功能
 
 ### 影像處理
@@ -79,7 +86,32 @@ VisionFlow 使用 Redis 來管理攝影機的影像資料。攝影機的影像�
 
 2. **影像辨識流程**:
    - 當攝影機捕捉到影像後，該影像會以 `camera_{camera_id}_latest_frame` 的 key 存入 Redis。
-   - worker 會從 Redis 中提取該影像進行辨識處理，並將處理後的影像結果存入 `camera_{camera_id}_boxed_image`。
+   - Worker 會從 Redis 中提取該影像進行辨識處理，並將處理後的影像結果存入 `camera_{camera_id}_boxed_image`。
+
+### 影像辨識與標註
+
+VisionFlow 整合了 [Supervision](https://github.com/roboflow/supervision) 套件來進行影像的辨識與標註。Supervision 提供了多種標註工具，如 `BoxAnnotator`、`RoundBoxAnnotator` 以及 `LabelAnnotator`，讓辨識結果能夠在影像上直觀地顯示。
+
+在 `MainApp` 類別中，我們使用了以下 Supervision 的功能：
+
+- **標註器 (Annotators)**:
+  - `BoxAnnotator`：在辨識到的物體周圍繪製矩形框。
+  - `RoundBoxAnnotator`：在辨識到的物體周圍繪製圓角矩形框。
+  - `LabelAnnotator`：在辨識到的物體上方標註文字標籤，包括類別名稱和信心度。
+  - `TraceAnnotator`：追蹤物體的移動軌跡。
+
+- **追蹤器 (Trackers)**:
+  - 使用 `ByteTrack` 來追蹤影像中的物體，確保每個物體在多幀影像中都有唯一的 ID，便於後續分析和標註。
+
+- **辨識流程**:
+  1. 使用 YOLO 模型進行物體檢測。
+  2. 將檢測結果轉換為 Supervision 的 `Detections` 格式。
+  3. 更新追蹤器以獲取最新的物體狀態。
+  4. 根據設定的目標標籤過濾檢測結果。
+  5. 使用標註器在影像上繪製檢測框和標籤。
+  6. 將標註後的影像儲存並通知相關系統。
+
+這些功能確保了系統能夠高效、準確地處理和標註來自多台攝影機的影像資料，提升整體的使用體驗和系統穩定性。
 
 ### 攝影機分配
 
@@ -484,24 +516,30 @@ VisionFlow 使用 Redis 來管理攝影機的影像資料。攝影機的影像�
 
 1. **環境變數**: 如果有需要，請確保在 `.env` 文件中正確設置了 `DATABASE_URL`、`SECRET_KEY` 和 `REDIS_URL`，這裡直接將預設變數寫在 code 裡，所以也能跳過這步直接執行。
 
-2. **資料庫遷移**: 如需更新資料庫或新增資料表，修改完 \web\models\ 後，請執行 `flask db migrate` 和 `flask db upgrade` 來更新資料庫。
+2. **資料庫遷移**: 如需更新資料庫或新增資料表，修改完 `web/models/` 後，請執行 `flask db migrate` 和 `flask db upgrade` 來更新資料庫。
 
 3. **Redis 配置**: 使用 Redis 來管理影像資料的儲存與處理，確保其正常運行並與 worker 節點連接。
+
 4. **Docker 啟動**: 請使用 Docker Compose 來管理應用程式的啟動和停止，尤其是當需要啟動多個 worker 節點時。
+
 5. **資料備份**: 定期備份你的 PostgreSQL 資料庫與 Redis 資料以防止數據丟失。
-6. **模型路徑**: 模型請替換成自己的模型(位於\object_recognition\app.py)。
+
+6. **模型路徑**: 模型請替換成自己的模型（位於 `object_recognition/app.py`）。
 
 ## License
 
 本專案使用 [MIT License](LICENSE) 授權。
 
-
 ## Contributions & Contact
 
-If you have any questions or contributions, please feel free to contact me. Your input is very welcome and will help improve this project. You can open an issue or submit a pull request on GitHub. Alternatively, you can reach me directly through the contact details provided below.
+如果您對此項目有任何疑問或想要做出貢獻，歡迎與我聯繫。您的反饋對於改進項目非常寶貴。您可以在 GitHub 上開啟問題(issue)或提交拉取請求(pull request)。或者，您也可以通過下方提供的聯繫方式直接與我聯繫。
 
 ### 聯繫與貢獻
 
 如果您對此項目有任何疑問或想要做出貢獻，歡迎與我聯繫。您的反饋對於改進項目非常寶貴。您可以在 GitHub 上開啟問題(issue)或提交拉取請求(pull request)。或者，您也可以通過下方提供的聯繫方式直接與我聯繫。
 
 sky328423@gmail.com
+
+## 參考資料
+
+- [Supervision by Roboflow](https://github.com/roboflow/supervision)

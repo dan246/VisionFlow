@@ -162,3 +162,4 @@ cython_debug/
 #.idea/
 db/
 rtsp_test/frames/
+object_recognition/saved_images/

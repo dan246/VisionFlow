@@ -31,8 +31,8 @@ services:
       - ./web:/app
     ports:
       - "5000:5000"
-    # command: sh -c "python app.py"
-    command: sh -c "sleep 100000"
+    command: sh -c "python app.py"
+    # command: sh -c "sleep 100000"
     networks:
       - service-networks
 
