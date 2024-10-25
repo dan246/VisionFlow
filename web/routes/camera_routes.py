@@ -24,8 +24,8 @@ def get_cameras(current_user):
         'recognition': camera.recognition
     } for camera in cameras]), 200
 
-# 更新攝影機信息(如果只用 PATCH 可以直接讀取，用 PUT 則要像以下寫 if )
-@camera_bp.route('/cameras/<int:camera_id>', methods=['PUT'])
+# 更新攝影機信息 (使用 PATCH，接受部分更新)
+@camera_bp.route('/cameras/<int:camera_id>', methods=['PATCH'])
 @token_required
 def update_camera(current_user, camera_id):
     # 取得請求中的資料
@@ -38,18 +38,18 @@ def update_camera(current_user, camera_id):
     if not camera:
         return jsonify({'message': 'Camera not found or not authorized.'}), 404
 
-    # 更新攝影機的名稱、串流 URL 和辨識狀態（如果有提供）
-    if data.get('name'):
+    # 更新攝影機的屬性，如果有提供
+    if 'name' in data:
         # 檢查是否有相同名稱的攝影機已存在
         existing_camera = Camera.query.filter_by(user_id=current_user.id, name=data['name']).first()
         if existing_camera and existing_camera.id != camera_id:
             return jsonify({'message': 'A camera with this name already exists.'}), 400
         camera.name = data['name']
 
-    if data.get('stream_url'):
+    if 'stream_url' in data:
         camera.stream_url = data['stream_url']
 
-    if data.get('recognition') is not None:
+    if 'recognition' in data:
         camera.recognition = data['recognition']
 
     try:

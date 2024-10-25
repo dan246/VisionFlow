@@ -10,6 +10,9 @@ import base64
 import io
 from flask_cors import CORS
 import os
+import logging
+import sys
+
 app = Flask(__name__)
 api = Api(app)
 CORS(app)
@@ -23,13 +26,8 @@ CORS(app)
 # 初始化 Redis
 r = init_redis()
 
-def setup_camera_manager():
-    manager = CameraManager()
-    manager.run()
-    timer = threading.Timer(1, setup_camera_manager)
-    timer.start()
-
-setup_camera_manager()
+manager = CameraManager()
+manager.run()
 
 camera_model = api.model('Camera', {
     'camera_id': fields.String(required=True, description='The camera identifier'),
@@ -156,4 +154,6 @@ def handle_rectangles(ID):
         return jsonify(message="所有矩形已清除"), 200
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
     app.run(host='0.0.0.0', port=15440)
+    # app.run()

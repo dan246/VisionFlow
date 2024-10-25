@@ -40,7 +40,7 @@ class MainApp:
         self.last_sent_timestamps = {}
         self.SLEEP_INTERVAL = 0.1  # 設定合理的休眠間隔
 
-        # 新增以下兩行
+        # 新增以下兩行，用於每個攝影機的追蹤器和標註器
         self.trackers = {}
         self.trace_annotators = {}
 
@@ -195,15 +195,17 @@ class MainApp:
             self.logger.info(f"Image from camera {camera_id} ready for processing")
 
             # 根據攝影機的模型類型進行辨識
-            for model_type in model_camera_ids:
-                if camera_id in model_camera_ids[model_type]:
-                    self.call_model_single(
-                        camera_id,
-                        img,
-                        rectangles,
-                        model_type,
-                        camera_info
-                    )
+            recognition_model = camera_info.get("recognition")
+            if recognition_model in self.models:
+                self.call_model_single(
+                    camera_id,
+                    img,
+                    rectangles,
+                    recognition_model,
+                    camera_info
+                )
+            else:
+                self.logger.warning(f"No valid recognition model for camera {camera_id}")
         else:
             self.logger.warning(f"No image fetched for camera {camera_id}")
 
@@ -372,17 +374,8 @@ class MainApp:
                     self.logger.debug(f"Camera list: {camera_list}")
 
                 camera_list_by_id = {int(camera["id"]): camera for camera in camera_list}
-                model_camera_ids = {
-                    "model1": [],
-                    "model2": [],
-                    "model3": []
-                }
-                for camera in camera_list:
-                    camera_id = int(camera["id"])
-                    recognition_model = camera.get("recognition")
-                    if recognition_model in model_camera_ids:
-                        model_camera_ids[recognition_model].append(camera_id)
 
+                # 構建攝影機ID與模型類型的對應關係
                 # 取得攝影機狀態
                 camera_status = await self.fetch_camera_status(session)
                 if not camera_status:
@@ -400,7 +393,7 @@ class MainApp:
                         camera_info = camera_list_by_id.get(camera_id)
                         if camera_info:
                             tasks.append(
-                                self.process_camera(session, camera_id, camera_info, model_camera_ids)
+                                self.process_camera(session, camera_id, camera_info, None)
                             )
 
                 if tasks:

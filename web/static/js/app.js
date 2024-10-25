@@ -375,7 +375,7 @@ updateCameraFormElement.addEventListener('submit', (e) => {
   if (recognitionModel) updatedData.recognition = recognitionModel;  // 模型名稱加入更新資料
 
   fetch(`${apiUrl}/cameras/${cameraId}`, {
-    method: 'PUT',
+    method: 'PATCH',  // 修改此处为 'PATCH'
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`
@@ -393,13 +393,13 @@ updateCameraFormElement.addEventListener('submit', (e) => {
       // 清空表單
       updateCameraFormElement.reset();
 
-      // 延遲1秒刷新攝影機列表，讓使用者看到最新資訊
+      // 延遲1秒刷新攝影機列表，讓用戶看到最新訊息
       setTimeout(() => {
-        loadCamerasManagement();  // 重新加載攝影機列表
+        loadCamerasManagement();  // 重新載入攝影機列表
       }, 1000);
       
     } else if (data.message) {
-      // 如果後端返回錯誤訊息，顯示錯誤訊息
+      // 如果後端回傳錯誤訊息，顯示錯誤訊息
       updateCameraErrorElement.textContent = data.message;
       updateCameraErrorElement.style.display = 'block';
       updateCameraSuccessElement.style.display = 'none';
