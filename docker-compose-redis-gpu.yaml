@@ -1,0 +1,94 @@
+version: '3'
+services:
+  redis:
+    image: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data:/data  # Persist Redis data to the host
+    networks:
+      - service-networks
+
+  worker_1:
+    build:
+      context: ./redisv1
+      dockerfile: rtsptestDockerfile
+    image: danlee01633060/rtsptest:v1
+    restart: always
+    environment:
+      - WORKER_ID=1
+    depends_on:
+      - redis
+    volumes:
+      - ./redisv1:/app
+      - ./rtsp_test/frames/:/app/frames
+    command: sh -c "cd /app && python app_GPU.py"
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - service-networks
+
+  worker_2:
+    build:
+      context: ./redisv1
+      dockerfile: rtsptestDockerfile
+    image: danlee01633060/rtsptest:v1
+    restart: always
+    environment:
+      - WORKER_ID=2
+    depends_on:
+      - redis
+    volumes:
+      - ./redisv1:/app
+      - ./rtsp_test/frames/:/app/frames
+    command: sh -c "cd /app && python app_GPU.py"
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - service-networks
+
+  worker_3:
+    build:
+      context: ./redisv1
+      dockerfile: rtsptestDockerfile
+    image: danlee01633060/rtsptest:v1
+    restart: always
+    environment:
+      - WORKER_ID=3
+    depends_on:
+      - redis
+    volumes:
+      - ./redisv1:/app
+      - ./rtsp_test/frames/:/app/frames
+    command: sh -c "cd /app && python app_GPU.py"
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - service-networks
+
+
+networks:
+  service-networks:
+    driver: bridge

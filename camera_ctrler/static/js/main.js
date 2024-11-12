@@ -1,15 +1,24 @@
-let rects = [];
-let isDrawing = false;
-let startX, startY;
+let polygons = [];
+let currentPolygon = [];
+let draggingPoint = null;
+let dragPolygonIndex = -1;
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 let img = new Image();
 let scale = 1;
 
 window.onload = function () {
-    fetchSnapshot(cameraId);
-    getRects();
+    fetchSnapshot();
+    getPolygons();
 };
+
+function fetchSnapshot() {
+    img.onload = function () {
+        adjustCanvas();
+        redrawCanvas();
+    };
+    img.src = 'data:image/jpeg;base64,' + imageData;
+}
 
 function adjustCanvas() {
     const maxWidth = window.innerWidth * 0.9;
@@ -26,101 +35,171 @@ function adjustCanvas() {
     }
 
     scale = canvas.width / img.naturalWidth;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    rects.forEach(rect => drawRect(rect));
 }
 
 window.addEventListener('resize', adjustCanvas);
 
-function fetchSnapshot(ID) {
-    fetch(`/get_snapshot/${ID}`)
-        .then(response => response.ok ? response.blob() : Promise.reject('網絡響應不是ok'))
-        .then(blob => {
-            const url = URL.createObjectURL(blob);
-            img.onload = adjustCanvas;
-            img.src = url;
-        })
-        .catch(error => {
-            console.error('錯誤:', error);
-            alert('無法加載圖片');
-        });
-}
-
-function drawRect(rect) {
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(rect.x * scale, rect.y * scale, rect.width * scale, rect.height * scale);
-}
-
 canvas.addEventListener('mousedown', function (e) {
-    startX = e.offsetX / scale;
-    startY = e.offsetY / scale;
-    isDrawing = true;
+    const mousePos = getMousePos(e);
+    const scaledPos = { x: mousePos.x / scale, y: mousePos.y / scale };
+
+    draggingPoint = findPoint(scaledPos);
+    if (!draggingPoint) {
+        currentPolygon.push(scaledPos);
+    }
+
+    redrawCanvas();
 });
 
 canvas.addEventListener('mousemove', function (e) {
-    if (isDrawing) {
-        const mouseX = e.offsetX / scale;
-        const mouseY = e.offsetY / scale;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        rects.forEach(rect => drawRect(rect));
-        drawRect({ x: startX, y: startY, width: mouseX - startX, height: mouseY - startY });
+    if (draggingPoint) {
+        const mousePos = getMousePos(e);
+        draggingPoint.x = mousePos.x / scale;
+        draggingPoint.y = mousePos.y / scale;
+        redrawCanvas();
     }
 });
 
-canvas.addEventListener('mouseup', function (e) {
-    if (isDrawing) {
-        const endX = e.offsetX / scale;
-        const endY = e.offsetY / scale;
-        const newRect = { x: startX, y: startY, width: endX - startX, height: endY - startY };
-        rects.push(newRect);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        rects.forEach(rect => drawRect(rect));
-        isDrawing = false;
-    }
+canvas.addEventListener('mouseup', function () {
+    draggingPoint = null;
 });
 
-function saveRects() {
+function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+function findPoint(pos) {
+    for (let i = 0; i < polygons.length; i++) {
+        for (let j = 0; j < polygons[i].length; j++) {
+            const point = polygons[i][j];
+            if (Math.hypot(point.x - pos.x, point.y - pos.y) < 5 / scale) {
+                dragPolygonIndex = i;
+                return point;
+            }
+        }
+    }
+    for (let i = 0; i < currentPolygon.length; i++) {
+        const point = currentPolygon[i];
+        if (Math.hypot(point.x - pos.x, point.y - pos.y) < 5 / scale) {
+            dragPolygonIndex = -1;
+            return point;
+        }
+    }
+    return null;
+}
+
+function drawPolygon(polygon, isCurrent) {
+    if (polygon.length < 1) return;
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.7)';
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+
+    ctx.beginPath();
+    ctx.moveTo(polygon[0].x * scale, polygon[0].y * scale);
+    for (let i = 1; i < polygon.length; i++) {
+        ctx.lineTo(polygon[i].x * scale, polygon[i].y * scale);
+    }
+
+    if (!isCurrent && polygon.length > 2) {
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    ctx.stroke();
+
+    polygon.forEach(point => {
+        drawPoint(point);
+    });
+}
+
+function drawPoint(point) {
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+    ctx.beginPath();
+    ctx.arc(point.x * scale, point.y * scale, 5, 0, 2 * Math.PI);
+    ctx.fill();
+}
+
+function redrawCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    
+    polygons.forEach(polygon => drawPolygon(polygon, false));
+
+    if (currentPolygon.length > 0) {
+        drawPolygon(currentPolygon, true);
+    }
+}
+
+function getPolygons() {
+    fetch(`/rectangles/${cameraId}`)
+        .then(response => response.json())
+        .then(data => {
+            polygons = data;
+            redrawCanvas();
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function savePolygons() {
     fetch(`/rectangles/${cameraId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(rects)
+        body: JSON.stringify(polygons)
     }).then(response => response.json())
-        .then(data => console.log(data.message));
-}
-
-function getRects() {
-    fetch(`/rectangles/${cameraId}`)
-        .then(response => response.json())
-        .then(data => {
-            rects = data;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            rects.forEach(rect => drawRect(rect));
-        })
+        .then(data => alert(data.message))
         .catch(error => console.error('Error:', error));
 }
 
-function clearRects() {
+function clearPolygons() {
     fetch(`/rectangles/${cameraId}`, {
         method: 'DELETE'
     }).then(response => response.json())
         .then(data => {
-            rects = [];
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            polygons = [];
+            currentPolygon = [];
+            redrawCanvas();
             alert(data.message);
         })
         .catch(error => console.error('Error:', error));
 }
 
-function undoRect() {
-    rects.pop();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    rects.forEach(rect => drawRect(rect));
+function undoLastPoint() {
+    if (currentPolygon.length > 0) {
+        currentPolygon.pop();
+    } else if (polygons.length > 0) {
+        let lastPolygon = polygons[polygons.length - 1];
+        if (lastPolygon.length > 0) {
+            lastPolygon.pop();
+            if (lastPolygon.length === 0) {
+                polygons.pop();
+            }
+        }
+    }
+    redrawCanvas();
+}
+
+function undoLastPolygon() {
+    if (currentPolygon.length > 0) {
+        currentPolygon = [];
+    } else if (polygons.length > 0) {
+        polygons.pop();
+    }
+    redrawCanvas();
+}
+
+function completePolygon() {
+    if (currentPolygon.length > 2) {
+        polygons.push([...currentPolygon]);
+        currentPolygon = [];
+        redrawCanvas();
+    } else {
+        alert('多邊形需要至少三個頂點');
+    }
 }
