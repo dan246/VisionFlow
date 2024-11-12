@@ -7,7 +7,7 @@ COPY . /app
 # 設定工作目錄
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y libgl1 -y libglib2.0-0
+RUN apt-get update && apt-get install -y libgl1 -y libglib2.0-0  -y ffmpeg
 
 # 升級 pip 並安裝必要的 Python 套件
 RUN pip install --upgrade pip

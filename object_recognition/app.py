@@ -24,7 +24,9 @@ from model_config import MODEL_CONFIG
 
 class MainApp:
     def __init__(self):
-        configure_logging()  # 設定日誌
+
+        # 日誌
+        configure_logging()  
         self.logger = logging.getLogger('MainApp')
         self.time_logger = logging.getLogger('TimeLogger')
 
@@ -38,13 +40,16 @@ class MainApp:
 
         self.api_service = ApiService(base_url=os.getenv("API_SERVICE_URL"))
         self.last_sent_timestamps = {}
-        self.SLEEP_INTERVAL = 0.1  # 設定合理的休眠間隔
 
-        # 新增以下兩行，用於每個攝影機的追蹤器和標註器
+        # 設定休眠
+        self.SLEEP_INTERVAL = 0.1  
+
+        # 初始化每個攝影機的追蹤器和標註器
         self.trackers = {}
         self.trace_annotators = {}
 
     def init_dirs(self):
+        """初始化儲存影像的目錄"""
         start_time = time.time()
         self.BASE_SAVE_DIR = "saved_images"
         self.RAW_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "raw_images")
@@ -64,27 +69,27 @@ class MainApp:
         )
 
     def init_models(self):
+        """初始化模型並設定標註器"""
         start_time = time.time()
-        # 從 MODEL_CONFIG 加載模型並初始化標註器
-        self.models = {}      # 用於存放模型的字典
-        self.annotators = {}  # 用於存放各模型的標註器
+
+        # 用於存放模型的字典
+        self.models = {}      
+
+        # 用於存放各模型的標註器
+        self.annotators = {}  
 
         for model_name, config in MODEL_CONFIG.items():
             model_paths = config["path"]
-            # 目前假設使用第一個路徑
             model_path = model_paths[0]
-            # 使用 ultralytics YOLO 加載模型
             self.models[model_name] = YOLO(model_path)
             self.logger.info(f"Model {model_name} loaded from {model_path}")
 
-            # 初始化標註器
             annotators_config = config.get("annotators", {})
             annotators = {}
 
             for annotator_name, annotator_settings in annotators_config.items():
                 annotator_type = annotator_settings.get("type")
                 if annotator_type == "BoxAnnotator":
-                    # 初始化 BoxAnnotator
                     thickness = annotator_settings.get("thickness", 2)
                     color = annotator_settings.get("color", None)
                     if color:
@@ -97,7 +102,6 @@ class MainApp:
                             thickness=thickness
                         )
                 elif annotator_type == "RoundBoxAnnotator":
-                    # 初始化 RoundBoxAnnotator
                     thickness = annotator_settings.get("thickness", 2)
                     color = annotator_settings.get("color", None)
                     if color:
@@ -110,7 +114,6 @@ class MainApp:
                             thickness=thickness
                         )
                 elif annotator_type == "LabelAnnotator":
-                    # 初始化 LabelAnnotator
                     text_position = annotator_settings.get("text_position", "TOP_CENTER")
                     text_thickness = annotator_settings.get("text_thickness", 2)
                     text_scale = annotator_settings.get("text_scale", 1)
@@ -122,7 +125,6 @@ class MainApp:
                     )
                 else:
                     self.logger.warning(f"Unknown annotator type: {annotator_type}")
-            # 不需要在這裡初始化 TraceAnnotator，因為它需要為每個攝影機單獨管理
             self.annotators[model_name] = annotators
 
         self.time_logger.info(
@@ -130,6 +132,7 @@ class MainApp:
         )
 
     async def fetch_camera_status(self, session):
+        """從 API 獲取攝影機狀態"""
         start_time = time.time()
         try:
             async with session.get(
@@ -148,59 +151,53 @@ class MainApp:
             self.logger.error(f"Error fetching camera status: {str(e)}")
             return {}
 
-    async def fetch_rectangles(self, session, camera_id):
+    async def fetch_mask(self, session, camera_id):
+        """從 API 獲取指定攝影機的遮罩資料"""
         start_time = time.time()
         try:
             async with session.get(
-                f"{os.getenv('CAMERA_SERVICE_URL')}/rectangles/{camera_id}"
+                f"{os.getenv('CAMERA_SERVICE_URL')}/mask/{camera_id}"
             ) as response:
                 if response.status == 200:
-                    rectangles = await response.json()
+                    mask_data = await response.read()
+                    mask_array = np.frombuffer(mask_data, dtype=np.uint8)
+                    mask_image = cv2.imdecode(mask_array, cv2.IMREAD_GRAYSCALE)
                     self.time_logger.info(
-                        f"Rectangles received for camera {camera_id} in {time.time() - start_time:.2f} seconds"
+                        f"Mask received for camera {camera_id} in {time.time() - start_time:.2f} seconds"
                     )
-                    return rectangles
+                    return mask_image
                 else:
                     self.logger.error(
-                        f"Failed to fetch rectangles for camera {camera_id}, HTTP status: {response.status}"
+                        f"Failed to fetch mask for camera {camera_id}, HTTP status: {response.status}"
                     )
-                    return []
+                    return None
         except Exception as e:
-            self.logger.error(
-                f"Error fetching rectangles for camera {camera_id}: {str(e)}"
-            )
-            return []
+            self.logger.error(f"Error fetching mask for camera {camera_id}: {str(e)}")
+            return None
 
     async def fetch_snapshot(self, session, camera_id):
+        """從 Redis 中獲取指定攝影機的最新影像"""
         start_time = time.time()
         redis_key = f"camera_{camera_id}_latest_frame"
-
-        # 使用執行緒池來執行阻塞的同步函數
         loop = asyncio.get_event_loop()
         image = await loop.run_in_executor(None, self.image_storage.fetch_image, redis_key)
-
         self.time_logger.info(
             f"Snapshot for camera {camera_id} fetched in {time.time() - start_time:.2f} seconds"
         )
         return image
 
     async def process_camera(self, session, camera_id, camera_info, model_camera_ids):
-        """
-        處理單個攝影機的圖像獲取和辨識
-        """
-        # 檢查攝影機狀態
+        """處理單個攝影機的影像獲取和辨識"""
         img = await self.fetch_snapshot(session, camera_id)
-        rectangles = await self.fetch_rectangles(session, camera_id)
+        mask = await self.fetch_mask(session, camera_id)
         if img is not None:
             self.logger.info(f"Image from camera {camera_id} ready for processing")
-
-            # 根據攝影機的模型類型進行辨識
             recognition_model = camera_info.get("recognition")
             if recognition_model in self.models:
                 self.call_model_single(
                     camera_id,
                     img,
-                    rectangles,
+                    mask,
                     recognition_model,
                     camera_info
                 )
@@ -209,10 +206,8 @@ class MainApp:
         else:
             self.logger.warning(f"No image fetched for camera {camera_id}")
 
-    def call_model_single(self, camera_id, image, rectangles, model_type, camera_info):
-        """
-        單獨處理一個攝影機的圖像進行模型辨識
-        """
+    def call_model_single(self, camera_id, image, mask, model_type, camera_info):
+        """使用指定的模型處理單個攝影機的影像"""
         start_time = time.time()
         notify_message = {
             "model1": "模型1檢測",
@@ -237,32 +232,26 @@ class MainApp:
             self.trace_annotators[model_type][camera_id] = sv.TraceAnnotator()
         trace_annotator = self.trace_annotators[model_type][camera_id]
 
-        # 執行模型預測
         results = model.predict(image, conf=model_config["conf"])
-        # 轉換為 supervision 的 Detections 格式
         detections = sv.Detections.from_ultralytics(results[0])
-
-        # 更新追蹤器
         detections = tracker.update_with_detections(detections)
 
-        # 根據 target_labels 過濾結果
         labels = [model.names[int(class_id)] for class_id in detections.class_id]
         filtered_indices = [
             i for i, label in enumerate(labels) if label in target_labels
         ]
         filtered_detections = detections[filtered_indices]
 
-        # 標註圖像
         annotated_image, detection_flag, label = self.annotate_image(
             image,
             filtered_detections,
-            rectangles,
+            mask,
             model.names,
             camera_info,
             model_type,
             trace_annotator
         )
-        # 保存和通知
+
         timestamp = time.time()
         self.save_and_notify(
             camera_id,
@@ -280,14 +269,14 @@ class MainApp:
         )
 
     def annotate_image(
-        self, image, detections, rectangles, model_names, camera_info, model_name, trace_annotator
+        self, image, detections, mask, model_names, camera_info, model_name, trace_annotator
     ):
+        """對影像進行標註，並根據遮罩篩選符合的區域"""
         annotated_image = image.copy()
-        # 獲取該模型的標註器
         annotators = self.annotators.get(model_name, {})
         box_annotator = annotators.get("box_annotator")
         label_annotator = annotators.get("label_annotator")
-        # 生成標籤
+
         if detections.tracker_id is not None:
             labels = [
                 f"#{tracker_id} {model_names[int(class_id)]} {confidence:.2f}"
@@ -303,25 +292,39 @@ class MainApp:
                 )
             ]
 
-        # 如果有檢測結果，設定 detection_flag 為 True
         detection_flag = len(detections) > 0
         label = ", ".join(labels) if labels else ""
 
-        # 使用標註器在圖像上繪製邊框和標籤
-        if box_annotator:
-            annotated_image = box_annotator.annotate(
-                scene=annotated_image, detections=detections
-            )
-        if label_annotator:
-            annotated_image = label_annotator.annotate(
-                scene=annotated_image, detections=detections, labels=labels
-            )
-        # 使用 TraceAnnotator
-        if trace_annotator:
-            annotated_image = trace_annotator.annotate(
-                scene=annotated_image,
-                detections=detections
-            )
+        # 檢查遮罩是否為全黑或不存在，若是則使用整張圖，若遮罩無效，將其設為 None，表示不進行局部範圍檢查
+        if mask is None or np.max(mask) == 0:
+            self.logger.info("Mask is missing or completely black; processing the entire image.")
+            mask = None  
+
+
+        for detection in detections:
+            x1, y1, x2, y2 = detection.xyxy[0]
+
+            # 若遮罩有效，則僅在框選範圍內檢查
+            if mask is not None:
+                mask_crop = mask[int(y1):int(y2), int(x1):int(x2)]
+
+                # 白色像素比例小於50%，跳過該檢測結果
+                if mask_crop.size == 0 or np.sum(mask_crop == 255) / mask_crop.size < 0.5:
+                    continue  
+
+            # 使用標註器在影像上繪製邊框和標籤
+            if box_annotator:
+                annotated_image = box_annotator.annotate(
+                    scene=annotated_image, detections=detections
+                )
+            if label_annotator:
+                annotated_image = label_annotator.annotate(
+                    scene=annotated_image, detections=detections, labels=labels
+                )
+            if trace_annotator:
+                annotated_image = trace_annotator.annotate(
+                    scene=annotated_image, detections=detections
+                )
 
         return annotated_image, detection_flag, label
 
@@ -336,6 +339,7 @@ class MainApp:
         detection_flag,
         label,
     ):
+        """儲存標註影像並發送通知"""
         start_time = time.time()
         annotated_img_path = os.path.join(
             self.ANNOTATED_SAVE_DIR, f"{camera_id}_{timestamp}.jpg"
@@ -343,7 +347,6 @@ class MainApp:
         cv2.imwrite(annotated_img_path, annotated_image)
         self.logger.info(f"Annotated image saved to {annotated_img_path}")
 
-        # 將最新的圖像保存到串流媒體目錄
         stream_img_path = os.path.join(self.STREAM_SAVE_DIR, f"{camera_id}.jpg")
         cv2.imwrite(
             stream_img_path, annotated_image, [cv2.IMWRITE_JPEG_QUALITY, 70]
@@ -359,12 +362,13 @@ class MainApp:
         )
 
     async def main_loop(self):
+        """主迴圈，不斷檢查攝影機狀態並處理影像"""
         async with aiohttp.ClientSession() as session:
             while True:
                 start_time = time.time()
                 self.logger.info("Checking cameras...")
 
-                # 取得攝影機列表
+                # 獲取攝影機列表
                 camera_list = self.api_service.get_camera_list()
                 if not camera_list:
                     self.logger.warning("No cameras found")
@@ -374,9 +378,6 @@ class MainApp:
                     self.logger.debug(f"Camera list: {camera_list}")
 
                 camera_list_by_id = {int(camera["id"]): camera for camera in camera_list}
-
-                # 構建攝影機ID與模型類型的對應關係
-                # 取得攝影機狀態
                 camera_status = await self.fetch_camera_status(session)
                 if not camera_status:
                     self.logger.warning("No camera status received")
@@ -385,7 +386,6 @@ class MainApp:
                 else:
                     self.logger.debug(f"Camera status: {camera_status}")
 
-                # 建立任務列表，同時處理所有攝影機
                 tasks = []
                 for camera_id_str, status in camera_status.items():
                     camera_id = int(camera_id_str)

@@ -1,28 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Snapshot</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>攝影機快照 - 多邊形繪製</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h1>Camera Snapshot for Camera {{ camera_id }}</h1>
-    <img id="snapshot" src="" alt="Camera Snapshot">
+    <h1>多邊形繪製</h1>
     <div id="canvasDiv">
         <canvas id="canvas"></canvas>
     </div>
     <div id="controls">
-        <button onclick="undoRect()">取消框</button>
-        <button onclick="saveRects()">儲存框</button>
-        <button onclick="clearRects()">清除框</button>
+        <button onclick="undoLastPoint()">撤銷上一頂點</button>
+        <button onclick="undoLastPolygon()">撤銷一個多邊形</button>
+        <button onclick="completePolygon()">完成當前多邊形</button>
+        <button onclick="savePolygons()">保存多邊形</button>
+        <button onclick="clearPolygons()">清除多邊形</button>
     </div>
     <script>
-        const cameraId = "{{ camera_id }}";
+        const cameraId = '{{ camera_id }}';
+        const imageData = '{{ image_data }}';
     </script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="main.js"></script>
 </body>
 
 </html>
