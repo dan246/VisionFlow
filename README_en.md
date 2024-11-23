@@ -1,6 +1,6 @@
 # VisionFlow
 
-[Chinese](https://github.com/dan246/VisionFlow/blob/main/README.md) | [EN](https://github.com/dan246/VisionFlow/blob/main/README_en.md)
+[Chinese](./README.md) | [EN](./README_en.md)
 
 **VisionFlow** is a backend application designed for image recognition and notification systems.  
 The project is built using the **Flask** framework, with **PostgreSQL** as the database for data management. It integrates **Redis** to handle and distribute camera image processing effectively.  
