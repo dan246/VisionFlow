@@ -7,16 +7,16 @@ VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該
 ## 功能介面展示
 
 ### 登入介面
-![登入介面][(./images/login_interface.PNG)](https://github.com/dan246/VisionFlow/blob/dev/readme_image/camera_management.PNG)
+![登入介面](./readme_image/login_interface.PNG)
 
 ### 註冊介面
-![註冊介面](./images/register_interface.PNG)
+![註冊介面](./readme_image/register_interface.PNG)
 
 ### 辨識串流
-![辨識串流](./images/stream_interface.PNG)
+![辨識串流](./readme_image/stream_interface.PNG)
 
 ### 攝影機管理
-![攝影機管理](./images/camera_management.PNG)
+![攝影機管理](./readme_image/camera_management.PNG)
 
 ### 辨識區域繪製
 ![辨識區域繪製](./images/detection_area.PNG)
