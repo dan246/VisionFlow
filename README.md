@@ -19,7 +19,7 @@ VisionFlow 是一個用於影像辨識與通知系統的後端應用程式。該
 ![攝影機管理](./readme_image/camera_management.PNG)
 
 ### 辨識區域繪製
-![辨識區域繪製](./images/detection_area.PNG)
+![辨識區域繪製](./readme_image/detection_area.PNG)
 
 ---
 
