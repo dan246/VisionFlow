@@ -46,6 +46,8 @@ services:
     stdin_open: true
     tty: true
     restart: always
+    depends_on:
+      - backend
     volumes:
       - ./object_recognition/saved_images/stream/:/app/stream
       - ./camera_ctrler:/app
@@ -67,6 +69,8 @@ services:
       dockerfile: objectrecognitionDockerfile
     user: "0:0"
     restart: always
+    depends_on:
+      - camera_ctrl
     stdin_open: true
     tty: true
     volumes:

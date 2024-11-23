@@ -131,26 +131,6 @@ class MainApp:
             f"Models and annotators initialized in {time.time() - start_time:.2f} seconds"
         )
 
-    # async def fetch_camera_status(self, session):
-    #     """從 API 獲取攝影機狀態"""
-    #     start_time = time.time()
-    #     try:
-    #         async with session.get(
-    #             f"{os.getenv('CAMERA_SERVICE_URL')}/camera_status"
-    #         ) as response:
-    #             if response.status == 200:
-    #                 camera_status = await response.json()
-    #                 self.logger.debug(f"Fetched camera_status: {camera_status}")
-    #                 return camera_status
-    #             else:
-    #                 self.logger.error(
-    #                     f"Failed to fetch camera status, HTTP status: {response.status}"
-    #                 )
-    #                 return {}
-    #     except Exception as e:
-    #         self.logger.error(f"Error fetching camera status: {str(e)}")
-    #         return {}
-
     async def fetch_camera_status(self):
         """
         從 Redis 獲取所有攝影機的狀態，使用 mget 提高效能。
@@ -210,28 +190,31 @@ class MainApp:
             return None
 
 
-    async def process_camera(self, session, camera_id, camera_info, model_camera_ids):
-        """處理單個攝影機的影像獲取和辨識"""
+    async def process_camera(self, session, camera_id, camera_info, images_batches):
         img = await self.fetch_snapshot(session, camera_id)
         mask = await self.fetch_mask(session, camera_id)
         if img is not None:
             self.logger.info(f"Image from camera {camera_id} ready for processing")
             recognition_model = camera_info.get("recognition")
             if recognition_model in self.models:
-                self.call_model_single(
-                    camera_id,
-                    img,
-                    mask,
-                    recognition_model,
-                    camera_info
-                )
+                # 根據模型類型將影像和資訊添加到對應的批次
+                if recognition_model not in images_batches:
+                    images_batches[recognition_model] = {
+                        'images': [],
+                        'masks': [],
+                        'camera_infos': []
+                    }
+                images_batches[recognition_model]['images'].append(img)
+                images_batches[recognition_model]['masks'].append(mask)
+                images_batches[recognition_model]['camera_infos'].append((camera_id, camera_info))
             else:
                 self.logger.warning(f"No valid recognition model for camera {camera_id}")
         else:
             self.logger.warning(f"No image fetched for camera {camera_id}")
 
-    def call_model_single(self, camera_id, image, mask, model_type, camera_info):
-        """使用指定的模型處理單個攝影機的影像"""
+
+    def call_model_batch(self, model_type, batch_data):
+        """使用指定的模型處理批次的影像"""
         start_time = time.time()
         notify_message = {
             "model1": "模型1檢測",
@@ -242,58 +225,48 @@ class MainApp:
         model = self.models[model_type]
         model_config = MODEL_CONFIG[model_type]
 
-        # 獲取特定標籤和置信度
-        label_conf = model_config.get("label_conf", {})
-        target_labels = label_conf.keys()
+        images_batch = batch_data['images']
+        masks_batch = batch_data['masks']
+        camera_infos_batch = batch_data['camera_infos']
 
-        # 模型推理
-        results = model.predict(image, conf=model_config["conf"])
-        detections = results[0]
+        # 模型批次推理
+        results = model.predict(images_batch, conf=model_config["conf"])
 
-        if not detections.boxes:
-            self.logger.warning(f"No detections found for camera {camera_id}")
-            return
+        for i, detections in enumerate(results):
+            image = images_batch[i]
+            mask = masks_batch[i]
+            camera_id, camera_info = camera_infos_batch[i]
 
-        # 過濾檢測結果
-        filtered_boxes = []
-        filtered_labels = []
-        filtered_confs = []
+            # 獲取特定標籤和置信度
+            label_conf = model_config.get("label_conf", {})
+            target_labels = label_conf.keys()
 
-        for box, conf, cls_id in zip(detections.boxes.xyxy, detections.boxes.conf, detections.boxes.cls):
-            class_name = model.names[int(cls_id)]
-            if class_name in target_labels and conf >= label_conf[class_name]:
-                filtered_boxes.append(box)
-                filtered_labels.append(class_name)
-                filtered_confs.append(conf)
+            if not detections.boxes:
+                self.logger.warning(f"No detections found for camera {camera_id}")
+                continue
 
-        # 標註圖像
-        annotated_image, detection_flag, label = self.annotate_image(
-            image, detections, mask, model.names, camera_info, model_type
-        )
+            # 標註圖像
+            annotated_image, detection_flag, label = self.annotate_image(
+                image, detections, mask, model.names, camera_info, model_type
+            )
 
-        # 保存帶框圖像到單獨資料夾（DEBUG用）
-        debug_folder = os.path.join(self.BASE_SAVE_DIR, "debug_detected")
-        os.makedirs(debug_folder, exist_ok=True)
-        debug_path = os.path.join(debug_folder, f"{camera_id}_detected.jpg")
-        cv2.imwrite(debug_path, annotated_image)
-        self.logger.info(f"Debug detected image saved at {debug_path}")
-
-        # 儲存影像並發送通知
-        timestamp = time.time()
-        self.save_and_notify(
-            camera_id,
-            annotated_image,
-            timestamp,
-            camera_info,
-            model_type,
-            notify_message,
-            detection_flag=detection_flag,
-            label=label,
-        )
+            # 儲存影像並發送通知
+            timestamp = time.time()
+            self.save_and_notify(
+                camera_id,
+                annotated_image,
+                timestamp,
+                camera_info,
+                model_type,
+                notify_message,
+                detection_flag=detection_flag,
+                label=label,
+            )
 
         self.time_logger.info(
-            f"Model {model_type} processing for camera {camera_id} completed in {time.time() - start_time:.2f} seconds"
+            f"Batch model {model_type} processing completed in {time.time() - start_time:.2f} seconds"
         )
+
 
     def annotate_image(self, image, detections, mask, model_names, camera_info, model_name):
         """
@@ -407,9 +380,6 @@ class MainApp:
         )
 
     async def main_loop(self):
-        """
-        主迴圈，動態調整間隔以減少不必要的延遲。
-        """
         async with aiohttp.ClientSession() as session:
             while True:
                 start_time = time.time()
@@ -431,29 +401,92 @@ class MainApp:
                     await asyncio.sleep(self.SLEEP_INTERVAL)
                     continue
 
+                # 初始化批次字典
+                images_batches = {}
+
                 # 為每台攝影機創建處理任務
                 tasks = []
                 for camera_id, status in camera_status.items():
                     if status["alive"] == "True":
                         camera_info = camera_list_by_id.get(camera_id)  # 使用轉換後的字典進行查詢
                         if camera_info:
-                            tasks.append(self.process_camera(session, camera_id, camera_info, None))
+                            tasks.append(self.process_camera(session, camera_id, camera_info, images_batches))
 
                 if tasks:
                     # 非同步執行所有攝影機的處理任務
                     await asyncio.gather(*tasks)
+
+                    # 所有影像收集完畢，對每個模型類型進行批次推理
+                    for model_type, batch_data in images_batches.items():
+                        self.call_model_batch(model_type, batch_data)
                 else:
                     self.logger.warning("無需處理的攝影機")
 
                 # 動態調整休眠時間
                 elapsed_time = time.time() - start_time
-                adjusted_sleep = max(0.1, self.SLEEP_INTERVAL - elapsed_time)
+                adjusted_sleep = max(0, self.SLEEP_INTERVAL - elapsed_time)
                 await asyncio.sleep(adjusted_sleep)
 
                 self.time_logger.info(
                     f"處理完成，耗時 {time.time() - start_time:.2f} 秒"
                 )
 
+
+    # async def main_loop(self):
+    #     async with aiohttp.ClientSession() as session:
+    #         while True:
+    #             start_time = time.time()
+    #             self.logger.info("檢查攝影機狀態...")
+
+    #             # 獲取攝影機列表
+    #             camera_list = self.api_service.get_camera_list()
+    #             if not camera_list:
+    #                 self.logger.warning("未發現任何攝影機")
+    #                 await asyncio.sleep(self.SLEEP_INTERVAL)
+    #                 continue
+
+    #             # 將 camera_list 轉換為字典格式
+    #             camera_list_by_id = {int(camera["id"]): camera for camera in camera_list}
+
+    #             camera_status = await self.fetch_camera_status()
+    #             if not camera_status:
+    #                 self.logger.warning("Redis 中未發現任何攝影機狀態")
+    #                 await asyncio.sleep(self.SLEEP_INTERVAL)
+    #                 continue
+
+    #             # 初始化批次列表
+    #             images_batch = []
+    #             masks_batch = []
+    #             camera_infos_batch = []
+
+    #             # 為每台攝影機創建處理任務
+    #             tasks = []
+    #             for camera_id, status in camera_status.items():
+    #                 if status["alive"] == "True":
+    #                     camera_info = camera_list_by_id.get(camera_id)  # 使用轉換後的字典進行查詢
+    #                     if camera_info:
+    #                         tasks.append(self.process_camera(session, camera_id, camera_info, None, images_batch, masks_batch, camera_infos_batch))
+
+    #             if tasks:
+    #                 # 非同步執行所有攝影機的處理任務
+    #                 await asyncio.gather(*tasks)
+
+    #                 # 所有影像收集完畢，進行批次推理
+    #                 if images_batch:
+    #                     self.call_model_batch(images_batch, masks_batch, camera_infos_batch)
+    #                 else:
+    #                     self.logger.warning("沒有需要處理的影像")
+    #             else:
+    #                 self.logger.warning("無需處理的攝影機")
+
+    #             # 動態調整休眠時間
+    #             elapsed_time = time.time() - start_time
+    #             adjusted_sleep = max(0, self.SLEEP_INTERVAL - elapsed_time)
+    #             await asyncio.sleep(adjusted_sleep)
+
+    #             self.time_logger.info(
+    #                 f"處理完成，耗時 {time.time() - start_time:.2f} 秒"
+    #             )
 
 if __name__ == "__main__":
     app = MainApp()
