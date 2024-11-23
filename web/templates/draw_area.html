@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>畫辨識區域 - VisionFlow</title>
+  <!-- 引入 Bootstrap -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- 自訂樣式 -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <!-- 主容器 -->
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>畫辨識區域</h2>
+      <div class="button-group">
+        <button id="backToDashboardButton" class="btn btn-secondary">返回儀表板</button>
+        <button id="logoutButtonDrawArea" class="btn btn-danger">登出</button>
+      </div>
+    </div>
+
+    <!-- 攝影機選擇 -->
+    <div class="form-group">
+      <label for="cameraSelect">選擇攝影機：</label>
+      <select id="cameraSelect" class="form-control"></select>
+    </div>
+
+    <!-- 這裡將嵌入從 API 獲得的模板 -->
+    <div id="drawAreaContent"></div>
+  </div>
+
+  <!-- 加載 JS -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <!-- <script src="/static/js/app.js"></script> -->
+  <script src="/static/js/draw_area.js"></script>
+</body>
+</html>

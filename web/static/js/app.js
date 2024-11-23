@@ -13,6 +13,11 @@ const backToDashboardButton = document.getElementById('backToDashboardButton');
 const cameraSelectElement = document.getElementById('cameraSelect');
 const liveStreamImageElement = document.getElementById('liveStreamImage');
 const loginErrorElement = document.getElementById('loginError');  // 登入錯誤提示元素
+const drawAreaButton = document.getElementById('drawAreaButton');
+const updateCameraErrorElement = document.getElementById('updateCameraError');
+const updateCameraSuccessElement = document.getElementById('updateCameraSuccess');
+
+
 
 // 攝影機管理相關 DOM Elements
 const cameraListElement = document.getElementById('cameraListItems');
@@ -38,6 +43,14 @@ window.onload = function() {
     logoutUser();  // 如果 token 不存在或過期，登出
   }
 };
+
+// 添加事件監聽器
+if (drawAreaButton) {
+  drawAreaButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.location.href = '/draw_area';
+  });
+}
 
 // 登入表單的事件處理
 loginFormElement.addEventListener('submit', (e) => {
@@ -367,46 +380,59 @@ updateCameraFormElement.addEventListener('submit', (e) => {
   const cameraId = document.getElementById('updateCameraSelect').value;
   const cameraName = document.getElementById('updateCameraName').value.trim();
   const cameraStreamUrl = document.getElementById('updateCameraStreamUrl').value.trim();
-  const recognitionModel = document.getElementById('updateCameraRecognition').value.trim();  // 模型名稱
+  const recognitionModel = document.getElementById('updateCameraRecognition').value.trim();
   
   const updatedData = {};
   if (cameraName) updatedData.name = cameraName;
   if (cameraStreamUrl) updatedData.stream_url = cameraStreamUrl;
-  if (recognitionModel) updatedData.recognition = recognitionModel;  // 模型名稱加入更新資料
+  if (recognitionModel) updatedData.recognition = recognitionModel;
 
   fetch(`${apiUrl}/cameras/${cameraId}`, {
-    method: 'PATCH',  // 修改此处为 'PATCH'
+    method: 'PATCH',  // 確保方法與後端一致
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`
     },
     body: JSON.stringify(updatedData)
   })
-  .then(response => response.json())
-  .then(data => {
-    if (data.id) {
-      // 更新成功時顯示成功訊息
+  .then(response => {
+    if (response.status === 401) {
+      // Token 失效，嘗試刷新
+      return refreshAccessToken().then(() => {
+        return fetch(`${apiUrl}/cameras/${cameraId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify(updatedData)
+        });
+      });
+    }
+    return response;
+  })
+  .then(response => {
+    if (response.ok) {
+      // 更新成功
       updateCameraSuccessElement.textContent = '攝影機更新成功！';
       updateCameraSuccessElement.style.display = 'block';
       updateCameraErrorElement.style.display = 'none';
-      
+
       // 清空表單
       updateCameraFormElement.reset();
 
-      // 延遲1秒刷新攝影機列表，讓用戶看到最新訊息
-      setTimeout(() => {
-        loadCamerasManagement();  // 重新載入攝影機列表
-      }, 1000);
-      
-    } else if (data.message) {
-      // 如果後端回傳錯誤訊息，顯示錯誤訊息
-      updateCameraErrorElement.textContent = data.message;
-      updateCameraErrorElement.style.display = 'block';
-      updateCameraSuccessElement.style.display = 'none';
+      // 重新加載攝影機列表
+      loadCamerasManagement();
+    } else {
+      // 更新失敗，顯示錯誤訊息
+      return response.json().then(data => {
+        updateCameraErrorElement.textContent = data.message || '更新攝影機失敗。';
+        updateCameraErrorElement.style.display = 'block';
+        updateCameraSuccessElement.style.display = 'none';
+      });
     }
   })
   .catch(error => {
-    // 捕捉意外錯誤並顯示錯誤訊息
     console.error('Error updating camera:', error);
     updateCameraErrorElement.textContent = '發生意外錯誤，請稍後再試。';
     updateCameraErrorElement.style.display = 'block';

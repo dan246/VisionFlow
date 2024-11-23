@@ -5,7 +5,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>攝影機快照 - 多邊形繪製</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        #canvas {
+            border: 1px solid black;
+            display: block;
+            margin: 0 auto;
+        }
+
+        #controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 12px;
+            transition-duration: 0.4s;
+        }
+
+        button:hover {
+            background-color: white;
+            color: black;
+            border: 2px solid #007bff;
+        }
+    </style>
 </head>
 
 <body>
@@ -21,10 +52,177 @@
         <button onclick="clearPolygons()">清除多邊形</button>
     </div>
     <script>
+        let polygons = []; // 已完成的多邊形列表
+        let currentPolygon = []; // 當前正在繪製的多邊形
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let img = new Image();
         const cameraId = '{{ camera_id }}';
         const imageData = '{{ image_data }}';
+
+        let scale = 1;
+
+        window.onload = function () {
+            fetchSnapshot();
+            getPolygons(); // 頁面加載時獲取已保存的多邊形
+        };
+
+        function fetchSnapshot() {
+            img.onload = function () {
+                adjustCanvas();
+                redrawCanvas();
+            };
+            img.src = 'data:image/jpeg;base64,' + imageData;
+        }
+
+        function adjustCanvas() {
+            const maxWidth = window.innerWidth * 0.9;
+            const maxHeight = window.innerHeight * 0.9;
+            const imgRatio = img.naturalWidth / img.naturalHeight;
+            const windowRatio = maxWidth / maxHeight;
+
+            if (imgRatio > windowRatio) {
+                canvas.width = maxWidth;
+                canvas.height = maxWidth / imgRatio;
+            } else {
+                canvas.height = maxHeight;
+                canvas.width = maxHeight * imgRatio;
+            }
+
+            scale = canvas.width / img.naturalWidth;
+        }
+
+        window.addEventListener('resize', adjustCanvas);
+
+        // 新增 mousedown 事件來添加頂點
+        canvas.addEventListener('mousedown', function (e) {
+            const mousePos = getMousePos(e);
+            const point = { x: mousePos.x / scale, y: mousePos.y / scale };
+            currentPolygon.push(point);
+            redrawCanvas(); // 重新繪製畫布
+        });
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function drawPolygon(polygon, isCurrent) {
+            if (polygon.length < 1) return;
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.7)'; // 綠色線條，透明度 0.7
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.3)'; // 綠色填充，透明度 0.3
+
+            ctx.beginPath();
+            ctx.moveTo(polygon[0].x * scale, polygon[0].y * scale);
+            for (let i = 1; i < polygon.length; i++) {
+                ctx.lineTo(polygon[i].x * scale, polygon[i].y * scale);
+            }
+
+            if (!isCurrent && polygon.length > 2) {
+                ctx.closePath();
+                ctx.fill(); // 填充多邊形
+            }
+
+            ctx.stroke();
+
+            // 繪製頂點
+            polygon.forEach(point => {
+                drawPoint(point);
+            });
+        }
+
+        function drawPoint(point) {
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)'; // 紅色，透明度 0.7
+            ctx.beginPath();
+            ctx.arc(point.x * scale, point.y * scale, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            polygons.forEach(polygon => drawPolygon(polygon, false));
+
+            if (currentPolygon.length > 0) {
+                drawPolygon(currentPolygon, true);
+            }
+        }
+
+        function getPolygons() {
+            fetch(`/rectangles/${cameraId}`)
+                .then(response => response.json())
+                .then(data => {
+                    polygons = data;
+                    redrawCanvas();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function savePolygons() {
+            fetch(`/rectangles/${cameraId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(polygons)
+            }).then(response => response.json())
+                .then(data => alert(data.message))
+                .catch(error => console.error('Error:', error));
+        }
+
+        function clearPolygons() {
+            fetch(`/rectangles/${cameraId}`, {
+                method: 'DELETE'
+            }).then(response => response.json())
+                .then(data => {
+                    polygons = [];
+                    currentPolygon = [];
+                    redrawCanvas();
+                    alert(data.message);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function undoLastPoint() {
+            if (currentPolygon.length > 0) {
+                currentPolygon.pop();
+            } else if (polygons.length > 0) {
+                let lastPolygon = polygons[polygons.length - 1];
+                if (lastPolygon.length > 0) {
+                    lastPolygon.pop();
+                    if (lastPolygon.length === 0) {
+                        polygons.pop();
+                    }
+                }
+            }
+            redrawCanvas();
+        }
+
+        function undoLastPolygon() {
+            if (currentPolygon.length > 0) {
+                currentPolygon = [];
+            } else if (polygons.length > 0) {
+                polygons.pop();
+            }
+            redrawCanvas();
+        }
+
+        function completePolygon() {
+            if (currentPolygon.length > 2) {
+                polygons.push([...currentPolygon]);
+                currentPolygon = [];
+                redrawCanvas();
+            } else {
+                alert('多邊形需要至少三個頂點');
+            }
+        }
     </script>
-    <script src="main.js"></script>
 </body>
 
 </html>

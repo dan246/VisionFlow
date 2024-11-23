@@ -50,7 +50,10 @@ def snapshot_ui(camera_id):
 def register():
     return render_template('register.html')
 
-
+# drow recognize area
+@app.route('/draw_area')
+def draw_area():
+    return render_template('draw_area.html')
 
 
 if __name__ == "__main__":
