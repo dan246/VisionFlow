@@ -50,7 +50,7 @@ class MainApp:
 
     def init_dirs(self):
         """初始化儲存影像的目錄"""
-        start_time = time.time()
+        start_time = time.monotonic()
         self.BASE_SAVE_DIR = "saved_images"
         self.RAW_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "raw_images")
         self.ANNOTATED_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "annotated_images")
@@ -65,12 +65,12 @@ class MainApp:
                 os.makedirs(dir_path)
 
         self.time_logger.info(
-            f"Directories initialized in {time.time() - start_time:.2f} seconds"
+            f"Directories initialized in {time.monotonic() - start_time:.2f} seconds"
         )
 
     def init_models(self):
         """初始化模型並設定標註器"""
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # 用於存放模型的字典
         self.models = {}      
@@ -128,14 +128,14 @@ class MainApp:
             self.annotators[model_name] = annotators
 
         self.time_logger.info(
-            f"Models and annotators initialized in {time.time() - start_time:.2f} seconds"
+            f"Models and annotators initialized in {time.monotonic() - start_time:.2f} seconds"
         )
 
     async def fetch_camera_status(self):
         """
         從 Redis 獲取所有攝影機的狀態，使用 mget 提高效能。
         """
-        start_time = time.time()
+        start_time = time.monotonic()
         try:
             # 透過鍵模式一次性獲取所有攝影機相關的狀態鍵
             camera_status_keys = self.r.keys("camera_*_status")
@@ -155,7 +155,7 @@ class MainApp:
 
             self.logger.debug(f"從 Redis 批量獲取攝影機狀態：{camera_status}")
             self.time_logger.info(
-                f"從 Redis 獲取攝影機狀態耗時 {time.time() - start_time:.2f} 秒"
+                f"從 Redis 獲取攝影機狀態耗時 {time.monotonic() - start_time:.2f} 秒"
             )
             return camera_status
         except Exception as e:
@@ -164,12 +164,12 @@ class MainApp:
 
     async def fetch_snapshot(self, session, camera_id):
         """從 Redis 中獲取指定攝影機的最新影像"""
-        start_time = time.time()
+        start_time = time.monotonic()
         redis_key = f"camera_{camera_id}_latest_frame"
         loop = asyncio.get_event_loop()
         image = await loop.run_in_executor(None, self.image_storage.fetch_image, redis_key)
         self.time_logger.info(
-            f"Snapshot for camera {camera_id} fetched in {time.time() - start_time:.2f} seconds"
+            f"Snapshot for camera {camera_id} fetched in {time.monotonic() - start_time:.2f} seconds"
         )
         return image
 
@@ -215,7 +215,7 @@ class MainApp:
 
     def call_model_batch(self, model_type, batch_data):
         """使用指定的模型處理批次的影像"""
-        start_time = time.time()
+        start_time = time.monotonic()
         notify_message = {
             "model1": "模型1檢測",
             "model2": "模型2檢測",
@@ -251,7 +251,7 @@ class MainApp:
             )
 
             # 儲存影像並發送通知
-            timestamp = time.time()
+            timestamp = time.monotonic()
             self.save_and_notify(
                 camera_id,
                 annotated_image,
@@ -264,7 +264,7 @@ class MainApp:
             )
 
         self.time_logger.info(
-            f"Batch model {model_type} processing completed in {time.time() - start_time:.2f} seconds"
+            f"Batch model {model_type} processing completed in {time.monotonic() - start_time:.2f} seconds"
         )
 
 
@@ -358,7 +358,7 @@ class MainApp:
         label,
     ):
         """儲存標註影像並發送通知"""
-        start_time = time.time()
+        start_time = time.monotonic()
         annotated_img_path = os.path.join(
             self.ANNOTATED_SAVE_DIR, f"{camera_id}_{timestamp}.jpg"
         )
@@ -376,13 +376,13 @@ class MainApp:
         self.image_storage.save_image(redis_key, annotated_image)
 
         self.time_logger.info(
-            f"Save and notify completed in {time.time() - start_time:.2f} seconds"
+            f"Save and notify completed in {time.monotonic() - start_time:.2f} seconds"
         )
 
     async def main_loop(self):
         async with aiohttp.ClientSession() as session:
             while True:
-                start_time = time.time()
+                start_time = time.monotonic()
                 self.logger.info("檢查攝影機狀態...")
 
                 # 獲取攝影機列表
@@ -423,19 +423,19 @@ class MainApp:
                     self.logger.warning("無需處理的攝影機")
 
                 # 動態調整休眠時間
-                elapsed_time = time.time() - start_time
+                elapsed_time = time.monotonic() - start_time
                 adjusted_sleep = max(0, self.SLEEP_INTERVAL - elapsed_time)
                 await asyncio.sleep(adjusted_sleep)
 
                 self.time_logger.info(
-                    f"處理完成，耗時 {time.time() - start_time:.2f} 秒"
+                    f"處理完成，耗時 {time.monotonic() - start_time:.2f} 秒"
                 )
 
 
     # async def main_loop(self):
     #     async with aiohttp.ClientSession() as session:
     #         while True:
-    #             start_time = time.time()
+    #             start_time = time.monotonic()
     #             self.logger.info("檢查攝影機狀態...")
 
     #             # 獲取攝影機列表
@@ -480,12 +480,12 @@ class MainApp:
     #                 self.logger.warning("無需處理的攝影機")
 
     #             # 動態調整休眠時間
-    #             elapsed_time = time.time() - start_time
+    #             elapsed_time = time.monotonic() - start_time
     #             adjusted_sleep = max(0, self.SLEEP_INTERVAL - elapsed_time)
     #             await asyncio.sleep(adjusted_sleep)
 
     #             self.time_logger.info(
-    #                 f"處理完成，耗時 {time.time() - start_time:.2f} 秒"
+    #                 f"處理完成，耗時 {time.monotonic() - start_time:.2f} 秒"
     #             )
 
 if __name__ == "__main__":

@@ -17,6 +17,6 @@ WORKDIR /app
 # 安裝所需的 Python 庫
 RUN pip install -r requirements.txt
 RUN pip install opencv-python
-
+RUN pip install gunicorn
 # # 暴露容器運行時的端口
 # EXPOSE 5000
