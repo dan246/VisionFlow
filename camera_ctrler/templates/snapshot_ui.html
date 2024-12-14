@@ -51,6 +51,17 @@
         <button onclick="savePolygons()">保存多邊形</button>
         <button onclick="clearPolygons()">清除多邊形</button>
     </div>
+    <div id="timeInterval">
+        <h2>時間區段設定</h2>
+        <label for="startTime">開始時間：</label>
+        <input type="time" id="startTime">
+        <label for="endTime">結束時間：</label>
+        <input type="time" id="endTime">
+        <br>
+        <button onclick="saveTimeInterval()">保存時間區段</button>
+        <button onclick="clearTimeInterval()">清除時間區段</button>
+        <p id="currentInterval"></p>
+    </div>
     <script>
         let polygons = []; // 已完成的多邊形列表
         let currentPolygon = []; // 當前正在繪製的多邊形
@@ -221,6 +232,67 @@
             } else {
                 alert('多邊形需要至少三個頂點');
             }
+        }
+        // 時間區段相關函數
+        function saveTimeInterval() {
+            let startTime = document.getElementById('startTime').value;
+            let endTime = document.getElementById('endTime').value;
+
+            if (!startTime || !endTime) {
+                alert('請輸入完整的時間區段');
+                return;
+            }
+
+            let timeData = {
+                start_time: startTime,
+                end_time: endTime
+            };
+
+            fetch(`/time_intervals/${cameraId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(timeData)
+            }).then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    getTimeInterval();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function getTimeInterval() {
+            fetch(`/time_intervals/${cameraId}`)
+                .then(response => {
+                    if (response.status === 200) {
+                        return response.json();
+                    } else {
+                        throw new Error('未設定時間區段');
+                    }
+                })
+                .then(data => {
+                    document.getElementById('startTime').value = data.start_time;
+                    document.getElementById('endTime').value = data.end_time;
+                    document.getElementById('currentInterval').innerText = `當前設定的時間區段：${data.start_time} 至 ${data.end_time}`;
+                })
+                .catch(error => {
+                    document.getElementById('currentInterval').innerText = '未設定時間區段';
+                    console.error('Error:', error);
+                });
+        }
+
+        function clearTimeInterval() {
+            fetch(`/time_intervals/${cameraId}`, {
+                method: 'DELETE'
+            }).then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    document.getElementById('startTime').value = '';
+                    document.getElementById('endTime').value = '';
+                    document.getElementById('currentInterval').innerText = '未設定時間區段';
+                })
+                .catch(error => console.error('Error:', error));
         }
     </script>
 </body>

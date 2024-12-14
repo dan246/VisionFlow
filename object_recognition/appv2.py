@@ -173,6 +173,32 @@ class MainApp:
         )
         return image
 
+
+    async def fetch_time_interval(self, session, camera_id):
+        """獲取指定攝影機的時間區段"""
+        try:
+            async with session.get(f"{os.getenv('CAMERA_SERVICE_URL')}/time_intervals/{camera_id}") as response:
+                if response.status == 200:
+                    time_data = await response.json()
+                    start_time = time_data.get('start_time')
+                    end_time = time_data.get('end_time')
+                    if start_time and end_time:
+                        self.logger.debug(f"成功獲取時間區段，攝影機 {camera_id}，開始時間: {start_time}, 結束時間: {end_time}")
+                        return start_time, end_time
+                    else:
+                        self.logger.warning(f"攝影機 {camera_id} 未找到完整的時間區段，繼續處理。")
+                        # 設置預設的時間段為全天有效
+                        return "00:00", "23:59"
+                else:
+                    self.logger.warning(f"攝影機 {camera_id} 未找到時間區段，HTTP狀態碼: {response.status}，繼續處理。")
+                    # 設置預設的時間段為全天有效
+                    return "00:00", "23:59"
+        except Exception as e:
+            self.logger.error(f"獲取攝影機 {camera_id} 的時間區段時發生錯誤: {str(e)}")
+            # 設置預設的時間段為全天有效
+            return "00:00", "23:59"
+
+
     async def fetch_mask(self, session, camera_id):
         """Fetches the mask for the specified camera from the mask endpoint."""
         try:
@@ -191,6 +217,19 @@ class MainApp:
 
 
     async def process_camera(self, session, camera_id, camera_info, images_batches):
+        start_time, end_time = await self.fetch_time_interval(session, camera_id)
+
+        # 獲取當前時間
+        now = datetime.datetime.now().time()
+        time_start = datetime.datetime.strptime(start_time, "%H:%M").time()
+        time_end = datetime.datetime.strptime(end_time, "%H:%M").time()
+
+        # 檢查是否在時間範圍內
+        if not (time_start <= now <= time_end):
+            self.logger.info(f"Camera {camera_id} is outside the allowed time range: {start_time} - {end_time}")
+            return
+        camera_info["start_time"] = start_time
+        camera_info["end_time"] = end_time
         img = await self.fetch_snapshot(session, camera_id)
         mask = await self.fetch_mask(session, camera_id)
         if img is not None:
@@ -282,6 +321,10 @@ class MainApp:
         """
         annotated_image = image.copy()
 
+        # 從 camera_info 獲取時間範圍
+        start_time = camera_info.get("start_time", "00:00")
+        end_time = camera_info.get("end_time", "23:59")
+
         # 確保檢測結果有效
         if detections.boxes is None or len(detections.boxes) == 0:
             self.logger.warning("No detections found to annotate.")
@@ -331,7 +374,9 @@ class MainApp:
                 1,
             )
 
-            self.logger.info(f"Annotated: {label} at [{x1}, {y1}, {x2}, {y2}] with confidence {conf:.2f}")
+            self.logger.info(
+            f"Annotated: {label} at [{x1}, {y1}, {x2}, {y2}] within time range {start_time} - {end_time}"
+        )
 
             # 如果有檢測結果，設置標誌
             detection_flag = True
@@ -431,62 +476,6 @@ class MainApp:
                     f"處理完成，耗時 {time.monotonic() - start_time:.2f} 秒"
                 )
 
-
-    # async def main_loop(self):
-    #     async with aiohttp.ClientSession() as session:
-    #         while True:
-    #             start_time = time.monotonic()
-    #             self.logger.info("檢查攝影機狀態...")
-
-    #             # 獲取攝影機列表
-    #             camera_list = self.api_service.get_camera_list()
-    #             if not camera_list:
-    #                 self.logger.warning("未發現任何攝影機")
-    #                 await asyncio.sleep(self.SLEEP_INTERVAL)
-    #                 continue
-
-    #             # 將 camera_list 轉換為字典格式
-    #             camera_list_by_id = {int(camera["id"]): camera for camera in camera_list}
-
-    #             camera_status = await self.fetch_camera_status()
-    #             if not camera_status:
-    #                 self.logger.warning("Redis 中未發現任何攝影機狀態")
-    #                 await asyncio.sleep(self.SLEEP_INTERVAL)
-    #                 continue
-
-    #             # 初始化批次列表
-    #             images_batch = []
-    #             masks_batch = []
-    #             camera_infos_batch = []
-
-    #             # 為每台攝影機創建處理任務
-    #             tasks = []
-    #             for camera_id, status in camera_status.items():
-    #                 if status["alive"] == "True":
-    #                     camera_info = camera_list_by_id.get(camera_id)  # 使用轉換後的字典進行查詢
-    #                     if camera_info:
-    #                         tasks.append(self.process_camera(session, camera_id, camera_info, None, images_batch, masks_batch, camera_infos_batch))
-
-    #             if tasks:
-    #                 # 非同步執行所有攝影機的處理任務
-    #                 await asyncio.gather(*tasks)
-
-    #                 # 所有影像收集完畢，進行批次推理
-    #                 if images_batch:
-    #                     self.call_model_batch(images_batch, masks_batch, camera_infos_batch)
-    #                 else:
-    #                     self.logger.warning("沒有需要處理的影像")
-    #             else:
-    #                 self.logger.warning("無需處理的攝影機")
-
-    #             # 動態調整休眠時間
-    #             elapsed_time = time.monotonic() - start_time
-    #             adjusted_sleep = max(0, self.SLEEP_INTERVAL - elapsed_time)
-    #             await asyncio.sleep(adjusted_sleep)
-
-    #             self.time_logger.info(
-    #                 f"處理完成，耗時 {time.monotonic() - start_time:.2f} 秒"
-    #             )
 
 if __name__ == "__main__":
     app = MainApp()

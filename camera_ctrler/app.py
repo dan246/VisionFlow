@@ -219,6 +219,49 @@ def handle_polygons(ID):
             r.delete(key)
         return jsonify(message="所有多邊形已清除"), 200
 
+# 處理時間區段的路由
+@app.route('/time_intervals/<ID>', methods=['POST', 'GET', 'DELETE'])
+def handle_time_intervals(ID):
+    start_time_key = f'start_time_{ID}'
+    end_time_key = f'end_time_{ID}'
+
+    if request.method == 'POST':
+        # 接收前端傳遞的時間資料
+        data = request.get_json()
+        logging.info(f"Received time data: {data}")
+
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+
+        if not start_time or not end_time:
+            return jsonify(message="未接收到完整的時間資料"), 400
+
+        # 儲存新的時間資料
+        r.set(start_time_key, start_time)
+        r.set(end_time_key, end_time)
+        logging.info(f"Saved start_time: {start_time}, end_time: {end_time}")
+        return jsonify(message="時間區段已儲存"), 200
+
+    elif request.method == 'GET':
+        # 返回時間資料
+        start_time = r.get(start_time_key)
+        end_time = r.get(end_time_key)
+
+        if start_time and end_time:
+            data = {
+                'start_time': start_time.decode('utf-8'),
+                'end_time': end_time.decode('utf-8')
+            }
+            return jsonify(data), 200
+        else:
+            return jsonify(message="未設定時間區段"), 404
+
+    elif request.method == 'DELETE':
+        r.delete(start_time_key)
+        r.delete(end_time_key)
+        return jsonify(message="時間區段已清除"), 200
+
+
 # 顯示 mask 的路由
 @app.route('/mask/<ID>', methods=['GET'])
 def generate_mask(ID):
