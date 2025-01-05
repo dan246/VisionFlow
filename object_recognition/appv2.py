@@ -11,11 +11,11 @@ import redis
 from PIL import Image, ImageDraw, ImageFont
 from shapely.geometry import Point, Polygon
 from ultralytics import YOLO
-from ApiService import ApiService  # 您原本的 API 服務，如同範例
+from ApiService import ApiService  
 from image_storage import ImageStorage
 from logging_config import configure_logging
-from model_config import MODEL_CONFIG  # 您的模型設定
-# from your_notification_module import send_notification # 假設未來要通知，可以再 import
+from model_config import MODEL_CONFIG  # 模型設定
+# from your_notification_module import send_notification 
 
 class MainApp:
     def __init__(self):
@@ -31,7 +31,7 @@ class MainApp:
         self.image_storage = ImageStorage(self.r)
         self.api_service = ApiService(base_url=os.getenv("API_SERVICE_URL", "http://backend:5000"))
 
-        # 讀取模型：若您已有自己的 models 初始化邏輯，也可與公司專案分開
+        # 讀取模型
         self.models = {}
         self.load_models_from_config()
 
@@ -75,7 +75,7 @@ class MainApp:
         start_time = time.time()
         for model_name, config in MODEL_CONFIG.items():
             model_paths = config["path"]
-            # 假設只用第一個路徑
+            # 只用第一個路徑
             model_path = model_paths[0]
 
             self.models[model_name] = YOLO(model_path)
@@ -119,7 +119,7 @@ class MainApp:
     async def fetch_time_interval(self, session, camera_id):
         """
         從後台或其他服務獲取指定攝影機的時段
-        - 假設後台有 GET /time_intervals/<camera_id> 取得 { start_time: "HH:MM", end_time: "HH:MM" }
+        - GET /time_intervals/<camera_id> 取得 { start_time: "HH:MM", end_time: "HH:MM" }
         """
         try:
             base_url = os.getenv("CAMERA_SERVICE_URL", "http://camera_ctrl:5000")
@@ -139,7 +139,7 @@ class MainApp:
     async def fetch_mask(self, session, camera_id):
         """
         從後台獲取 mask 圖與多邊形資訊
-        - 假設後端 GET /mask/<camera_id> 回傳:
+        - GET /mask/<camera_id> 回傳:
             {
               "image_url": "http://xxx/mask.jpg",
               "polygons_info": [
@@ -186,7 +186,7 @@ class MainApp:
         """
         1. 用 YOLO 的結果 detections (boxes/conf/classes)
         2. 逐一檢查 bounding box 在 mask 內的「白像素佔比」
-        - 若小於 overlap_threshold，就跳過
+        -  小於 overlap_threshold，就跳過
         3. 繪製框 & 進行後續狀態機判斷
         """
         if detections.boxes is None or len(detections.boxes) == 0:
@@ -224,13 +224,13 @@ class MainApp:
                 overlap_ratio = white_pixels / float(box_area)
 
                 if overlap_ratio < overlap_threshold:
-                    # 若白色(有效區域)佔比太小，就跳過
+                    # 白色(有效區域)佔比太小，就跳過
                     self.logger.debug(
                         f"Box[{x1},{y1},{x2},{y2}] 與 mask overlap 比例 {overlap_ratio:.2f} < 門檻 {overlap_threshold}, 跳過"
                     )
                     continue
 
-            # ------ (C) 若通過檢查，就收集此框 ------
+            # ------ (C) 通過檢查，就收集此框 ------
             final_boxes.append((x1, y1, x2, y2))
             final_confs.append(conf)
             final_classes.append(cls_id)
@@ -289,7 +289,7 @@ class MainApp:
 
     def state_machine(self, camera_id, detected_events, annotated_image):
         """
-        Inside/Outside 狀態機示範
+        Inside/Outside 狀態
         """
         current_time = time.time()
 
@@ -390,8 +390,8 @@ class MainApp:
                     if frame is None:
                         continue
 
-                    # 🔴這裡的bitwise_and只是把外面弄成黑，但有時仍會偵測到誤框
-                    # 我們會在event_detection_logic再做一次檢查
+                    # bitwise_and 只是把外面弄成黑，有時仍會偵測到誤框
+                    # 在 event_detection_logic 再做一次檢查
                     if mask is not None and np.any(mask):
                         frame = cv2.bitwise_and(frame, frame, mask=mask)
 
@@ -423,7 +423,7 @@ class MainApp:
                             annotated_image=original_frame.copy(),
                             detections=det_result,
                             polygons_info=polygons_info,
-                            mask=mask   # 🔴 傳給event_detection_logic做中心點檢查
+                            mask=mask   # 傳給 event_detection_logic 做中心點檢查
                         )
 
                         if self.debug_mode:
