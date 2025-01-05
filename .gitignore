@@ -164,3 +164,4 @@ db/
 rtsp_test/frames/
 object_recognition/saved_images/
 redis-data/
+camera_ctrler/__pycache__/

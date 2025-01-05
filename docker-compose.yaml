@@ -86,7 +86,7 @@ services:
       - API_SERVICE_URL=http://backend:5000
       - TOKEN=hf_xxxxxx
       - DATASETNAME=danlee01633060/imgtest
-    # privileged: true
+    privileged: true
     # deploy:
     #   resources:
     #     reservations:
@@ -95,7 +95,7 @@ services:
     #           count: 1
     #           capabilities: [ gpu ]
     command: sh -c "sleep 30666"
-    # command: python app.py
+    # command: python app.py`
     networks:
       - service-networks
 

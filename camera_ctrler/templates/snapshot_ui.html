@@ -6,6 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>攝影機快照 - 多邊形繪製</title>
     <style>
+        body {
+            font-family: "Noto Sans TC", sans-serif;
+        }
+
         #canvas {
             border: 1px solid black;
             display: block;
@@ -13,6 +17,11 @@
         }
 
         #controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #timeInterval {
             text-align: center;
             margin-top: 20px;
         }
@@ -36,21 +45,26 @@
             color: black;
             border: 2px solid #007bff;
         }
+
+        input[type="time"] {
+            padding: 5px;
+            font-size: 16px;
+            margin: 5px;
+        }
+
+        label {
+            font-size: 16px;
+            margin: 5px;
+        }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+        integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 
 <body>
-    <h1>多邊形繪製</h1>
-    <div id="canvasDiv">
-        <canvas id="canvas"></canvas>
-    </div>
-    <div id="controls">
-        <button onclick="undoLastPoint()">撤銷上一頂點</button>
-        <button onclick="undoLastPolygon()">撤銷一個多邊形</button>
-        <button onclick="completePolygon()">完成當前多邊形</button>
-        <button onclick="savePolygons()">保存多邊形</button>
-        <button onclick="clearPolygons()">清除多邊形</button>
-    </div>
+    <!-- <h1>多邊形繪製</h1> -->
+    <h3>多邊形列表</h3>
     <div id="timeInterval">
         <h2>時間區段設定</h2>
         <label for="startTime">開始時間：</label>
@@ -62,22 +76,104 @@
         <button onclick="clearTimeInterval()">清除時間區段</button>
         <p id="currentInterval"></p>
     </div>
+
+    <div id="canvasDiv">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="controls">
+        <input type="text" id="polygonName" placeholder="輸入區域名稱" oninput="updatePolygonName()">
+        <input type="color" id="polygonColor" value="#00ff00" oninput="updatePolygonColor()">
+        <input type="number" id="polygonDuration" placeholder="持續時間警報(分)" oninput="updatePolygonDuration()"
+            style="width:140px;">
+        <button onclick="undoLastPoint()">移除上一個錨點</button>
+        <button onclick="undoLastPolygon()">移除上一個區域</button>
+        <button onclick=" clearPolygons()" style="margin-right: 48px;">移除所有區域</button>
+        <button onclick="completePolygon()"><i class="fa-solid fa-draw-polygon"
+                style="margin-right: 4px;"></i>閉鎖區域</button>
+        <button onclick="savePolygons()"><i class="fa-solid fa-cloud-arrow-up"
+                style="margin-right: 4px;"></i>儲存</button>
+    </div>
+
+    <div id="polygonList" style="margin-top: 20px;">
+        <div id="polygonItems" style="text-align: center;"></div>
+    </div>
+
     <script>
-        let polygons = []; // 已完成的多邊形列表
-        let currentPolygon = []; // 當前正在繪製的多邊形
+        let polygons = [];
+        let currentPolygon = [];
+        let draggingPoint = null;
+        let dragPolygonIndex = -1;
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         let img = new Image();
         const cameraId = '{{ camera_id }}';
         const imageData = '{{ image_data }}';
-
         let scale = 1;
+        let currentPolygonName = ""; // 儲存當前多邊形的名稱
+        let currentPolygonColor = "#00ff00"; // 當前多邊形顏色
+        let currentPolygonDuration = 0; // 當前多邊形的持續時間警報(分)
+
 
         window.onload = function () {
             fetchSnapshot();
-            getPolygons(); // 頁面加載時獲取已保存的多邊形
+            getPolygons();
+            getTimeInterval();
         };
 
+        function updatePolygonDuration() {
+            currentPolygonDuration = parseInt(document.getElementById("polygonDuration").value) || 0;
+        }
+
+        function updatePolygonList() {
+            const listContainer = document.getElementById("polygonItems");
+            listContainer.innerHTML = ""; // 清空現有列表
+
+            polygons.forEach((polygon, index) => {
+                const item = document.createElement("div");
+                item.style.marginBottom = "10px";
+                item.innerHTML = `
+                    <label>名稱：</label>
+                    <input type="text" id="polygonName_${index}" value="${polygon.name}" style="margin-right: 10px;">
+                    <label>顏色：</label>
+                    <input type="color" id="polygonColor_${index}" value="${polygon.color}" style="margin-right: 10px;">
+                    <button onclick="updatePolygon(${index})">更新</button>
+                    <button onclick="deletePolygon(${index})" style="margin-left: 5px;">刪除</button>
+                    <label>持續時間警報(分)：</label>
+                    <input type="number" id="polygonDuration_${index}" value="${polygon.duration || 0}" style="width:120px; margin-right:10px;">
+                    <button onclick="updatePolygon(${index})">更新</button>
+                    <button onclick="deletePolygon(${index})" style="margin-left: 5px;">刪除</button>
+                `;
+                listContainer.appendChild(item);
+            });
+        }
+
+        function updatePolygon(index) {
+            const newName = document.getElementById(`polygonName_${index}`).value;
+            const newColor = document.getElementById(`polygonColor_${index}`).value;
+            const newDuration = parseInt(document.getElementById(`polygonDuration_${index}`).value) || 0;
+
+            polygons[index].name = newName;
+            polygons[index].color = newColor;
+            polygons[index].duration = newDuration;
+
+            redrawCanvas(); // 重新繪製畫布
+            updatePolygonList(); // 更新列表
+        }
+
+        function deletePolygon(index) {
+            polygons.splice(index, 1); // 移除指定的多邊形
+            redrawCanvas();            // 重新繪製畫布
+            updatePolygonList();       // 更新列表
+        }
+
+        function updatePolygonName() {
+            currentPolygonName = document.getElementById("polygonName").value;
+        }
+
+        function updatePolygonColor() {
+            currentPolygonColor = document.getElementById("polygonColor").value;
+        }
         function fetchSnapshot() {
             img.onload = function () {
                 adjustCanvas();
@@ -88,7 +184,7 @@
 
         function adjustCanvas() {
             const maxWidth = window.innerWidth * 0.9;
-            const maxHeight = window.innerHeight * 0.9;
+            const maxHeight = window.innerHeight * 0.6;
             const imgRatio = img.naturalWidth / img.naturalHeight;
             const windowRatio = maxWidth / maxHeight;
 
@@ -105,12 +201,29 @@
 
         window.addEventListener('resize', adjustCanvas);
 
-        // 新增 mousedown 事件來添加頂點
         canvas.addEventListener('mousedown', function (e) {
             const mousePos = getMousePos(e);
-            const point = { x: mousePos.x / scale, y: mousePos.y / scale };
-            currentPolygon.push(point);
-            redrawCanvas(); // 重新繪製畫布
+            const scaledPos = { x: mousePos.x / scale, y: mousePos.y / scale };
+
+            draggingPoint = findPoint(scaledPos);
+            if (!draggingPoint) {
+                currentPolygon.push(scaledPos);
+            }
+
+            redrawCanvas();
+        });
+
+        canvas.addEventListener('mousemove', function (e) {
+            if (draggingPoint) {
+                const mousePos = getMousePos(e);
+                draggingPoint.x = mousePos.x / scale;
+                draggingPoint.y = mousePos.y / scale;
+                redrawCanvas();
+            }
+        });
+
+        canvas.addEventListener('mouseup', function () {
+            draggingPoint = null;
         });
 
         function getMousePos(e) {
@@ -121,34 +234,62 @@
             };
         }
 
-        function drawPolygon(polygon, isCurrent) {
+        function findPoint(pos) {
+            for (let i = 0; i < polygons.length; i++) {
+                let polygon = polygons[i].points;
+                for (let j = 0; j < polygon.length; j++) {
+                    const point = polygon[j];
+                    if (Math.hypot(point.x - pos.x, point.y - pos.y) < 5 / scale) {
+                        dragPolygonIndex = i;
+                        return point;
+                    }
+                }
+            }
+            for (let i = 0; i < currentPolygon.length; i++) {
+                const point = currentPolygon[i];
+                if (Math.hypot(point.x - pos.x, point.y - pos.y) < 5 / scale) {
+                    dragPolygonIndex = -1;
+                    return point;
+                }
+            }
+            return null;
+        }
+
+        function drawPolygon(polygonData, isCurrent) {
+            let polygon = polygonData.points;
             if (polygon.length < 1) return;
 
             ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.7)'; // 綠色線條，透明度 0.7
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.3)'; // 綠色填充，透明度 0.3
+            ctx.strokeStyle = polygonData.color || 'rgba(0, 255, 0, 0.7)'; // 邊框顏色
+            ctx.fillStyle = polygonData.color + '50' || 'rgba(0, 255, 0, 0.3)'; // 半透明顏色
 
             ctx.beginPath();
             ctx.moveTo(polygon[0].x * scale, polygon[0].y * scale);
             for (let i = 1; i < polygon.length; i++) {
                 ctx.lineTo(polygon[i].x * scale, polygon[i].y * scale);
             }
-
             if (!isCurrent && polygon.length > 2) {
                 ctx.closePath();
-                ctx.fill(); // 填充多邊形
+                ctx.fill();
             }
-
             ctx.stroke();
 
+            // 計算多邊形中心位置
+            let centerX = polygon.reduce((sum, p) => sum + p.x, 0) / polygon.length * scale;
+            let centerY = polygon.reduce((sum, p) => sum + p.y, 0) / polygon.length * scale;
+
+            // 顯示名稱
+            ctx.font = "16px Arial";
+            ctx.fillStyle = "black";
+            ctx.textAlign = "center";
+            ctx.fillText(polygonData.name, centerX, centerY);
+
             // 繪製頂點
-            polygon.forEach(point => {
-                drawPoint(point);
-            });
+            polygon.forEach(point => drawPoint(point));
         }
 
         function drawPoint(point) {
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)'; // 紅色，透明度 0.7
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
             ctx.beginPath();
             ctx.arc(point.x * scale, point.y * scale, 5, 0, 2 * Math.PI);
             ctx.fill();
@@ -157,11 +298,11 @@
         function redrawCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
-            polygons.forEach(polygon => drawPolygon(polygon, false));
+
+            polygons.forEach(polygonData => drawPolygon(polygonData, false));
 
             if (currentPolygon.length > 0) {
-                drawPolygon(currentPolygon, true);
+                drawPolygon({ points: currentPolygon }, true);
             }
         }
 
@@ -170,12 +311,17 @@
                 .then(response => response.json())
                 .then(data => {
                     polygons = data;
-                    redrawCanvas();
+                    redrawCanvas();    // 繪製畫布
+                    updatePolygonList(); // 更新多邊形列表
                 })
                 .catch(error => console.error('Error:', error));
         }
-
         function savePolygons() {
+            polygons.forEach((polygon, index) => {
+                polygon.name = document.getElementById(`polygonName_${index}`).value;
+                polygon.color = document.getElementById(`polygonColor_${index}`).value;
+                polygon.duration = parseInt(document.getElementById(`polygonDuration_${index}`).value) || 0;
+            });
             fetch(`/rectangles/${cameraId}`, {
                 method: 'POST',
                 headers: {
@@ -204,7 +350,8 @@
             if (currentPolygon.length > 0) {
                 currentPolygon.pop();
             } else if (polygons.length > 0) {
-                let lastPolygon = polygons[polygons.length - 1];
+                let lastPolygonData = polygons[polygons.length - 1];
+                let lastPolygon = lastPolygonData.points;
                 if (lastPolygon.length > 0) {
                     lastPolygon.pop();
                     if (lastPolygon.length === 0) {
@@ -226,9 +373,20 @@
 
         function completePolygon() {
             if (currentPolygon.length > 2) {
-                polygons.push([...currentPolygon]);
+                let polygonData = {
+                    points: [...currentPolygon],
+                    name: currentPolygonName || `未命名區域-${polygons.length + 1}`,
+                    color: currentPolygonColor || '#00ff00',
+                    duration: currentPolygonDuration || 0
+                };
+
+                polygons.push(polygonData);
                 currentPolygon = [];
+                currentPolygonName = "";
+                document.getElementById('polygonName').value = "";
+                document.getElementById('polygonDuration').value = "";
                 redrawCanvas();
+                updatePolygonList(); // 新增後更新列表
             } else {
                 alert('多邊形需要至少三個頂點');
             }
