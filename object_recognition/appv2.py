@@ -116,63 +116,84 @@ class MainApp:
             self.logger.debug(f"無法獲取攝影機 {camera_id} 的影像")
         return image
 
+
     async def fetch_time_interval(self, session, camera_id):
-        """
-        從後台或其他服務獲取指定攝影機的時段
-        - GET /time_intervals/<camera_id> 取得 { start_time: "HH:MM", end_time: "HH:MM" }
-        """
+        """獲取指定攝影機的時間區段，增加快取機制"""
+        current_time = time.time()
+        
+        # 檢查快取是否有效
+        if camera_id in self.time_interval_cache:
+            cache_data = self.time_interval_cache[camera_id]
+            if current_time - cache_data['timestamp'] < self.CACHE_TTL:
+                return cache_data['start'], cache_data['end']
+        
         try:
+            default_interval = ("00:00", "23:59")
+            
             base_url = os.getenv("CAMERA_SERVICE_URL", "http://camera_ctrl:5000")
             async with session.get(f"{base_url}/time_intervals/{camera_id}") as resp:
                 if resp.status == 200:
-                    data = await resp.json()
-                    start_t = data.get("start_time", "00:00")
-                    end_t = data.get("end_time", "23:59")
-                    return start_t, end_t
-                else:
-                    self.logger.warning(f"無法取得攝影機 {camera_id} 的時段，預設全天有效")
-                    return "00:00", "23:59"
+                    time_data = await resp.json()
+                    start_time = time_data.get('start_time')
+                    end_time = time_data.get('end_time')
+                    
+                    if start_time and end_time:
+                        # 更新快取
+                        self.time_interval_cache[camera_id] = {
+                            'start': start_time,
+                            'end': end_time,
+                            'timestamp': current_time
+                        }
+                        return start_time, end_time
+                    
+                return default_interval
+                
         except Exception as e:
-            self.logger.error(f"fetch_time_interval 發生錯誤: {e}")
-            return "00:00", "23:59"
+            self.logger.error(f"獲取攝影機 {camera_id} 的時間區段時發生錯誤: {str(e)}")
+            return default_interval
 
     async def fetch_mask(self, session, camera_id):
-        """
-        從後台獲取 mask 圖與多邊形資訊
-        - GET /mask/<camera_id> 回傳:
-            {
-              "image_url": "http://xxx/mask.jpg",
-              "polygons_info": [
-                  {"name": "zoneA", "points": [[x1,y1], [x2,y2], ...], "duration": 3},
-                  ...
-              ]
-            }
-        """
+        """獲取指定攝影機的遮罩和多邊形名稱資訊，增加快取機制"""
+        current_time = time.time()
+        
+        # 檢查快取是否有效
+        if camera_id in self.mask_cache:
+            cache_data = self.mask_cache[camera_id]
+            if current_time - cache_data['timestamp'] < self.CACHE_TTL:
+                return cache_data['mask'], cache_data['polygons']
+        
         try:
+            # 使用 gather 同時獲取遮罩資訊和圖片
             base_url = os.getenv("CAMERA_SERVICE_URL", "http://camera_ctrl:5000")
             async with session.get(f"{base_url}/mask/{camera_id}") as resp:
                 if resp.status == 200:
-                    data = await resp.json()
-                    image_url = data.get("image_url")
-                    polygons_info = data.get("polygons_info", [])
+                    mask_response = await resp.json()
+                    image_url = mask_response.get("image_url")
+                    polygons_info = mask_response.get("polygons_info", [])
 
-                    # 下載 mask 圖片
                     if image_url:
-                        async with session.get(image_url) as img_resp:
-                            if img_resp.status == 200:
-                                mask_data = await img_resp.read()
+                        async with session.get(image_url) as image_response:
+                            if image_response.status == 200:
+                                mask_data = await image_response.read()
                                 mask_array = np.frombuffer(mask_data, dtype=np.uint8)
                                 mask_image = cv2.imdecode(mask_array, cv2.IMREAD_GRAYSCALE)
+                                
+                                # 更新快取
+                                self.mask_cache[camera_id] = {
+                                    'mask': mask_image,
+                                    'polygons': polygons_info,
+                                    'timestamp': current_time
+                                }
+                                
                                 return mask_image, polygons_info
-                            else:
-                                self.logger.warning(f"無法下載 mask 圖：{image_url}")
-                    return None, polygons_info
-                else:
-                    self.logger.warning(f"未獲得攝影機 {camera_id} 的 mask 資訊，HTTP {resp.status}")
-                    return None, []
+                
+                self.logger.warning(f"無法獲取攝影機 {camera_id} 的遮罩")
+                return None, []
+                
         except Exception as e:
-            self.logger.error(f"fetch_mask 時發生錯誤: {e}")
+            self.logger.error(f"獲取攝影機 {camera_id} 的遮罩時發生錯誤: {str(e)}")
             return None, []
+
 
     def event_detection_logic(
         self, 

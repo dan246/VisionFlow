@@ -95,7 +95,7 @@ services:
     #           count: 1
     #           capabilities: [ gpu ]
     command: sh -c "sleep 30666"
-    # command: python app.py`
+    # command: python appv2.py`
     networks:
       - service-networks
 
