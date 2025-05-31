@@ -174,8 +174,18 @@ jobs:
     - name: 檢出代碼
       uses: actions/checkout@v4
 
-    - name: 設置 Docker Buildx
+    - name: 設置 Docker Buildx (帶重試)
       uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          network=host
+
+    - name: 預拉取基底映像
+      run: |
+        echo "預拉取基底映像以減少建構失敗..."
+        docker pull python:3.11-slim || \
+        docker pull python:3.11-alpine || \
+        echo "警告: 無法預拉取基底映像，將在建構時處理"
 
     - name: 登入 Container Registry
       uses: docker/login-action@v3
@@ -197,7 +207,9 @@ jobs:
           type=semver,pattern={{major}}.{{minor}}
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: 構建並推送映像
+    - name: 構建並推送映像 (主要嘗試)
+      id: docker_build_main
+      continue-on-error: true
       uses: docker/build-push-action@v5
       with:
         context: ${{ matrix.service.context }}
@@ -207,7 +219,33 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+
+    - name: 構建並推送映像 (Alpine 備用方案)
+      if: steps.docker_build_main.outcome == 'failure' && matrix.service.name == 'web'
+      continue-on-error: true
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.service.context }}
+        file: ${{ matrix.service.context }}/Dockerfile.alpine
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64
+
+    - name: 構建並推送映像 (最終重試)
+      if: steps.docker_build_main.outcome == 'failure'
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.service.context }}
+        file: ${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64
+        no-cache: true
 
   # ==========================================
   # 安全掃描
