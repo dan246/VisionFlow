@@ -16,7 +16,7 @@ class CameraManager:
         self.worker_id = worker_id
         self.worker_key = f'worker_{self.worker_id}_urls'
         self.SERVERIP = SERVERIP
-        self.num_workers = 3  # 3 個工作器
+        self.num_workers = 1  # 只使用 1 個工作器
 
     def clear_old_cameras(self, current_camera_ids):
         # 遍歷所有與攝影機相關的鍵，假設攝影機相關的鍵以 'camera_' 開頭
@@ -37,7 +37,7 @@ class CameraManager:
 
     def fetch_and_update_cameras(self, previous_camera_ids):
         # 從伺服器獲取最新的攝影機列表
-        url = f"{self.SERVERIP}/cameras/all"
+        url = f"{self.SERVERIP}/camera/cameras/all"
         headers = {}
         response = requests.get(url, headers=headers)
 

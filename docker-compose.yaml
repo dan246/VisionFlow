@@ -31,7 +31,9 @@ services:
       - ./web:/app
     ports:
       - "5000:5000"
-    command: sh -c "python app.py"
+    # command: sh -c "python app.py"
+    command: gunicorn -w 4 -b 0.0.0.0:5000 app:app
+
     # command: sh -c "sleep 100000"
     networks:
       - service-networks
@@ -56,7 +58,8 @@ services:
       - SERVERIP=http://backend:5000
     ports:
       - "15440:5000"
-    command: sh -c "flask run --no-debugger --host 0.0.0.0"
+    # command: sh -c "flask run --no-debugger --host 0.0.0.0"
+    command: gunicorn -w 4 -b 0.0.0.0:5000 app:app
     networks:
       - service-networks
 
@@ -83,7 +86,7 @@ services:
       - API_SERVICE_URL=http://backend:5000
       - TOKEN=hf_xxxxxx
       - DATASETNAME=danlee01633060/imgtest
-    # privileged: true
+    privileged: true
     # deploy:
     #   resources:
     #     reservations:
@@ -92,7 +95,7 @@ services:
     #           count: 1
     #           capabilities: [ gpu ]
     command: sh -c "sleep 30666"
-    # command: python app.py
+    # command: python appv2.py`
     networks:
       - service-networks
 

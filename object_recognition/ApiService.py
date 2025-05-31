@@ -24,7 +24,7 @@ class ApiService:
     #     return False
 
     def get_camera_list(self):
-        url = f'{self.base_url}/cameras/all'
+        url = f'{self.base_url}/camera/cameras/all'
         headers = {}
         response = requests.get(url, headers=headers)
         data = response.json()

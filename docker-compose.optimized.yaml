@@ -1,0 +1,295 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  db:
+    container_name: 'visionflow_db'
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-vision_notify}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - ./db/:/var/lib/postgresql/data/
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - visionflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-vision_notify}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis Cache
+  redis:
+    container_name: 'visionflow_redis'
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - visionflow-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Web Backend
+  backend:
+    container_name: 'visionflow_backend'
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Flask Configuration
+      FLASK_ENV: ${FLASK_ENV:-production}
+      FLASK_DEBUG: ${FLASK_DEBUG:-false}
+      SECRET_KEY: ${SECRET_KEY}
+      
+      # Database Configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-vision_notify}
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_FILE_LOGGING: ${ENABLE_FILE_LOGGING:-true}
+      
+    volumes:
+      - ./web:/app
+      - ./shared:/app/shared
+      - web_logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        python -m flask db upgrade &&
+        gunicorn -w ${GUNICORN_WORKERS:-4} -b 0.0.0.0:5000 --timeout ${GUNICORN_TIMEOUT:-120} --keep-alive ${GUNICORN_KEEPALIVE:-5} --max-requests ${GUNICORN_MAX_REQUESTS:-1000} --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER:-100} --access-logfile /app/logs/access.log --error-logfile /app/logs/error.log app:app
+      "
+    networks:
+      - visionflow-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Camera Controller
+  camera_ctrl:
+    container_name: 'visionflow_camera_ctrl'
+    build:
+      context: ./camera_ctrler
+      dockerfile: cameractrlDockerfile
+    restart: unless-stopped
+    environment:
+      # Flask Configuration
+      FLASK_HOST: 0.0.0.0
+      FLASK_PORT: 5000
+      FLASK_DEBUG: ${FLASK_DEBUG:-false}
+      
+      # Backend Connection
+      SERVERIP: http://backend:5000
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # Camera Configuration
+      CAMERA_FETCH_INTERVAL: ${CAMERA_FETCH_INTERVAL:-0.1}
+      CAMERA_TIMEOUT: ${CAMERA_TIMEOUT:-30}
+      WORKER_THREADS: ${CAMERA_WORKER_THREADS:-4}
+      
+      # Storage
+      SAVE_PATH: /app/images
+      ENABLE_IMAGE_SAVING: ${ENABLE_IMAGE_SAVING:-false}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+    volumes:
+      - ./object_recognition/saved_images/stream/:/app/stream
+      - ./camera_ctrler:/app
+      - camera_images:/app/images
+      - camera_logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "15440:5000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    command: >
+      gunicorn -w ${CAMERA_GUNICORN_WORKERS:-4}
+               -b 0.0.0.0:5000
+               --timeout ${CAMERA_GUNICORN_TIMEOUT:-60}
+               --worker-class gevent
+               --worker-connections ${CAMERA_WORKER_CONNECTIONS:-1000}
+               app:app
+    networks:
+      - visionflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/camera_status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Object Recognition Service
+  objectrecognition:
+    container_name: 'visionflow_object_recognition'
+    build:
+      context: ./object_recognition
+      dockerfile: objectrecognitionDockerfile
+    restart: unless-stopped
+    user: "0:0"
+    environment:
+      # Service Configuration
+      API_SERVICE_URL: http://backend:5000
+      CAMERA_SERVICE_URL: http://camera_ctrl:5000
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # Model Configuration
+      MODEL_PATH_BASE: /app
+      MODEL1_ENABLED: ${MODEL1_ENABLED:-true}
+      MODEL2_ENABLED: ${MODEL2_ENABLED:-false}
+      MODEL3_ENABLED: ${MODEL3_ENABLED:-false}
+      
+      # Processing Configuration
+      PROCESSING_SLEEP_INTERVAL: ${PROCESSING_SLEEP_INTERVAL:-0.1}
+      MAX_WORKERS: ${OBJECT_RECOGNITION_MAX_WORKERS:-4}
+      GPU_ENABLED: ${GPU_ENABLED:-false}
+      BATCH_SIZE: ${BATCH_SIZE:-1}
+      
+      # Storage Configuration
+      BASE_SAVE_DIR: /app/saved_images
+      ENABLE_IMAGE_SAVING: ${ENABLE_IMAGE_SAVING:-true}
+      
+      # Notification Configuration
+      ENABLE_EMAIL_NOTIFICATIONS: ${ENABLE_EMAIL_NOTIFICATIONS:-false}
+      ENABLE_LINE_NOTIFICATIONS: ${ENABLE_LINE_NOTIFICATIONS:-false}
+      
+      # External Services
+      TOKEN: ${HUGGINGFACE_TOKEN:-}
+      DATASETNAME: ${DATASET_NAME:-}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+    volumes:
+      - ./object_recognition:/app
+      - ./AImodels/object_recognition/model:/app/model
+      - ./AImodels/object_recognition/tmp:/app/tmp
+      - object_recognition_images:/app/saved_images
+      - object_recognition_logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      camera_ctrl:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: ${OBJECT_RECOGNITION_MEMORY_LIMIT:-2G}
+        reservations:
+          memory: ${OBJECT_RECOGNITION_MEMORY_RESERVATION:-512M}
+          # Uncomment for GPU support
+          # devices:
+          #   - driver: nvidia
+          #     count: 1
+          #     capabilities: [gpu]
+    command: python app.py
+    networks:
+      - visionflow-network
+
+  # Redis Workers (可擴展)
+  redis-worker-1:
+    container_name: 'visionflow_redis_worker_1'
+    build:
+      context: ./redisv1
+      dockerfile: rtsptestDockerfile
+    restart: unless-stopped
+    environment:
+      # Worker Configuration
+      WORKER_ID: 1
+      NUM_WORKERS: ${NUM_REDIS_WORKERS:-3}
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # Processing Configuration
+      RECONNECT_INTERVAL: ${RECONNECT_INTERVAL:-30}
+      FRAME_FETCH_INTERVAL: ${FRAME_FETCH_INTERVAL:-0.1}
+      MAX_CONCURRENT_CAMERAS: ${MAX_CONCURRENT_CAMERAS:-10}
+      
+      # Storage
+      STORAGE_PATH: /app/storage
+      ENABLE_FILE_STORAGE: ${ENABLE_FILE_STORAGE:-false}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+    volumes:
+      - ./redisv1:/app
+      - redis_worker_storage:/app/storage
+      - redis_worker_logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python app.py
+    networks:
+      - visionflow-network
+
+volumes:
+  redis_data:
+    driver: local
+  web_logs:
+    driver: local
+  camera_images:
+    driver: local
+  camera_logs:
+    driver: local
+  object_recognition_images:
+    driver: local
+  object_recognition_logs:
+    driver: local
+  redis_worker_storage:
+    driver: local
+  redis_worker_logs:
+    driver: local
+
+networks:
+  visionflow-network:
+    driver: bridge
+    name: visionflow-network

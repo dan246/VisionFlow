@@ -2,17 +2,43 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "dev" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "dev" ]
 
 jobs:
-
-  build:
-
+  build-backend:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+    - name: Build Backend Image
+      run: |
+        cd web
+        docker build . --file Dockerfile --tag backend-image:$(date +%s)
+
+  build-camera-ctrl:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Camera Control Image
+      run: |
+        cd camera_ctrler
+        docker build . --file cameractrlDockerfile --tag camera-ctrl-image:$(date +%s)
+
+  build-objectrecognition:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Object Recognition Image
+      run: |
+        cd object_recognition
+        docker build . --file objectrecognitionDockerfile --tag objectrecognition-image:$(date +%s)
+
+  build-worker_1:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build worker Image
+      run: |
+        cd redisv1
+        docker build . --file rtsptestDockerfile --tag worker_1-image:$(date +%s)

@@ -1,52 +1,131 @@
+"""
+Redis Worker Application
+Enhanced with configuration management and error handling.
+"""
+
 import os
+import sys
 import redis
 import cv2
 import multiprocessing
+import logging
 from time import time, sleep, localtime, strftime
 from datetime import datetime
+from typing import Dict, Any, Optional
 
-# 初始化 Redis 連線
-redis_host = 'redis'
-redis_port = 6379
-redis_db = 0
+# Local imports
+from config import RedisWorkerConfig as Config
 
-def fetch_frame(camera_id, camera_url, worker_key, stop_event):
-    # 在每個進程內初始化 Redis 連線
-    r = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
+# Setup logging
+def setup_logging(log_level: str = "INFO") -> logging.Logger:
+    """Setup logging configuration"""
+    logging.basicConfig(
+        level=getattr(logging, log_level.upper()),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler('redis_worker.log')
+        ]
+    )
+    return logging.getLogger(__name__)
 
-    cap = cv2.VideoCapture(camera_url)
-    reconnect_interval = 30
+# Initialize configuration and logger
+config = Config()
+logger = setup_logging(config.LOG_LEVEL)
+
+def init_redis_connection() -> redis.Redis:
+    """Initialize Redis connection with error handling"""
+    try:
+        r = redis.Redis(
+            host=config.REDIS_HOST,
+            port=config.REDIS_PORT,
+            db=config.REDIS_DB,
+            decode_responses=False,
+            socket_timeout=5,
+            socket_connect_timeout=5,
+            # retry_on_timeout=True
+        )
+        # Test connection
+        r.ping()
+        logger.info(f"Redis connection established: {config.REDIS_HOST}:{config.REDIS_PORT}")
+        return r
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis: {e}")
+        raise
+
+def fetch_frame(camera_id: str, camera_url: str, worker_key: str, stop_event):
+    """
+    Enhanced frame fetching function with better error handling and monitoring
+    """
+    # Setup per-process logging
+    process_logger = logging.getLogger(f"worker-{camera_id}")
+    
+    # Initialize Redis connection for this process
+    try:
+        r = init_redis_connection()
+    except Exception as e:
+        process_logger.error(f"Failed to initialize Redis in worker {camera_id}: {e}")
+        return
+
+    cap = None
+    reconnect_interval = config.RECONNECT_INTERVAL
     frame_count = 0
     last_time = time()
-    file_path = None
+    consecutive_failures = 0
+    max_failures = config.MAX_CONSECUTIVE_FAILURES
+
+    process_logger.info(f"Starting frame capture for camera {camera_id} from {camera_url}")
 
     while not stop_event.is_set():
         try:
-            if not cap.isOpened():
-                print(f"[{camera_id}] 攝影機連線中斷，{reconnect_interval} 秒後重新連線...")
-                cap.open(camera_url)
-                sleep(reconnect_interval)
-                r.set(f'camera_{camera_id}_status', 'False')
-                continue
+            # Initialize or check video capture
+            if cap is None or not cap.isOpened():
+                process_logger.info(f"[{camera_id}] Connecting to camera...")
+                cap = cv2.VideoCapture(camera_url)
+                
+                if not cap.isOpened():
+                    consecutive_failures += 1
+                    process_logger.warning(
+                        f"[{camera_id}] Failed to connect to camera. "
+                        f"Retrying in {reconnect_interval}s... "
+                        f"(Failure {consecutive_failures}/{max_failures})"
+                    )
+                    
+                    if consecutive_failures >= max_failures:
+                        process_logger.error(f"[{camera_id}] Max failures reached. Stopping worker.")
+                        break
+                        
+                    r.set(f'camera_{camera_id}_status', 'False')
+                    sleep(reconnect_interval)
+                    continue
 
             ret, frame = cap.read()
             if not ret:
-                print(f"[{camera_id}] 讀取畫面錯誤，重試中...")
-                cap.release()
-                cap.open(camera_url)
-                print(f"[{camera_id}] 重新連線至攝影機 URL: {camera_url}")
-                sleep(1)
+                consecutive_failures += 1
+                process_logger.warning(f"[{camera_id}] Failed to read frame. Retry {consecutive_failures}")
+                
+                if consecutive_failures >= max_failures:
+                    process_logger.error(f"[{camera_id}] Too many frame read failures. Reconnecting...")
+                    cap.release()
+                    cap = None
+                    consecutive_failures = 0
+                    continue
+                    
                 r.set(f'camera_{camera_id}_status', 'False')
+                sleep(1)
                 continue
 
+            # Reset failure counter on successful frame read
+            consecutive_failures = 0
             frame_count += 1
             current_time = time()
             elapsed = current_time - last_time
 
+            # Calculate and update FPS
             if elapsed >= 1.0:
                 fps = frame_count / elapsed
-                r.set(f'camera_{camera_id}_fps', fps)
-                print(f"[{camera_id}] 攝影機 FPS: {fps}")
+                r.set(f'camera_{camera_id}_fps', f"{fps:.2f}")
+                process_logger.debug(f"[{camera_id}] Camera FPS: {fps:.2f}")
                 frame_count = 0
                 last_time = current_time
 
@@ -104,7 +183,9 @@ def main():
         raise ValueError("未設定 WORKER_ID 環境變數")
     worker_key = f'worker_{worker_id}_urls'
 
-    r = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
+    # Use configuration from Config class
+    config = Config()
+    r = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, db=config.REDIS_DB)
     pubsub = r.pubsub()
     pubsub.subscribe([f'{worker_key}_update'])
 

@@ -1,4 +1,4 @@
-const apiUrl = "http://localhost:5000";  // 後端的URL
+const apiUrl = "http://localhost:5001";  // 後端的URL
 const streamApiUrl = "http://localhost:15440";  // 影片功能的URL
 const defaultGifUrl = "/static/images/no_camera.gif";  // 預設的 GIF 圖片 URL
 
@@ -58,7 +58,7 @@ loginFormElement.addEventListener('submit', (e) => {
   const username = document.getElementById('loginUsername').value;
   const password = document.getElementById('loginPassword').value;
 
-  fetch(`${apiUrl}/login`, {
+  fetch(`${apiUrl}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
@@ -161,7 +161,7 @@ function refreshAccessToken() {
       return;
     }
 
-    fetch(`${apiUrl}/token/refresh`, {
+    fetch(`${apiUrl}/auth/token/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: storedRefreshToken })
@@ -188,7 +188,7 @@ function refreshAccessToken() {
 
 // 加載攝影機列表以更新即時串流的選擇
 function loadCameras() {
-  fetch(`${apiUrl}/cameras`, {
+  fetch(`${apiUrl}/camera/cameras`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
@@ -198,7 +198,7 @@ function loadCameras() {
       // 如果返回 401，嘗試刷新 accessToken
       return refreshAccessToken().then(() => {
         // 成功刷新 token 後，重試加載攝影機列表
-        return fetch(`${apiUrl}/cameras`, {
+        return fetch(`${apiUrl}/camera/cameras`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
@@ -223,7 +223,7 @@ function loadCameras() {
 
 // 加載攝影機列表以顯示在管理視圖中
 function loadCamerasManagement() {
-  fetch(`${apiUrl}/cameras`, {
+  fetch(`${apiUrl}/camera/cameras`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
@@ -233,7 +233,7 @@ function loadCamerasManagement() {
       // 如果返回 401，嘗試刷新 accessToken
       return refreshAccessToken().then(() => {
         // 成功刷新 token 後，重試加載攝影機列表
-        return fetch(`${apiUrl}/cameras`, {
+        return fetch(`${apiUrl}/camera/cameras`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
@@ -341,7 +341,7 @@ addCameraFormElement.addEventListener('submit', (e) => {
     return;
   }
 
-  fetch(`${apiUrl}/cameras`, {
+  fetch(`${apiUrl}/camera/cameras`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -387,7 +387,7 @@ updateCameraFormElement.addEventListener('submit', (e) => {
   if (cameraStreamUrl) updatedData.stream_url = cameraStreamUrl;
   if (recognitionModel) updatedData.recognition = recognitionModel;
 
-  fetch(`${apiUrl}/cameras/${cameraId}`, {
+  fetch(`${apiUrl}/camera/cameras/${cameraId}`, {
     method: 'PATCH',  // 確保方法與後端一致
     headers: {
       'Content-Type': 'application/json',
@@ -399,7 +399,7 @@ updateCameraFormElement.addEventListener('submit', (e) => {
     if (response.status === 401) {
       // Token 失效，嘗試刷新
       return refreshAccessToken().then(() => {
-        return fetch(`${apiUrl}/cameras/${cameraId}`, {
+        return fetch(`${apiUrl}/camera/cameras/${cameraId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -460,7 +460,7 @@ function updateCameraSelectForUpdate(cameras) {
 
 // 在攝影機管理介面加載時更新可選攝影機列表
 function loadCamerasManagement() {
-  fetch(`${apiUrl}/cameras`, {
+  fetch(`${apiUrl}/camera/cameras`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
@@ -470,7 +470,7 @@ function loadCamerasManagement() {
       // 如果返回 401，嘗試刷新 accessToken
       return refreshAccessToken().then(() => {
         // 成功刷新 token 後，重試加載攝影機列表
-        return fetch(`${apiUrl}/cameras`, {
+        return fetch(`${apiUrl}/camera/cameras`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
@@ -500,7 +500,7 @@ function deleteCamera(cameraId) {
     return;
   }
 
-  fetch(`${apiUrl}/cameras/${cameraId}`, {
+  fetch(`${apiUrl}/camera/cameras/${cameraId}`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${accessToken}`

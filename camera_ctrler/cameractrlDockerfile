@@ -1,22 +1,51 @@
-FROM python:3.11.8-slim-bullseye
+# Enhanced Camera Controller Service Dockerfile
+FROM python:3.11-slim
 
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
 
+# Create app user
+RUN groupadd -r app && useradd -r -g app app
 
+# Install system dependencies for OpenCV
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    gcc \
+    g++ \
     libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libgl1-mesa-glx \
+    libgthread-2.0-0 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
-# 更新 pip
-RUN pip install --upgrade pip
 
-# 複製當前目錄下的內容到容器中的/app目錄
-COPY . /app
-# 設定工作目錄
+# Set work directory
 WORKDIR /app
 
-# 安裝所需的 Python 庫
-RUN pip install -r requirements.txt
-RUN pip install opencv-python
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 暴露容器運行時的端口
-EXPOSE 5000
+# Copy application code
+COPY . .
+
+# Create necessary directories and set permissions
+RUN mkdir -p logs static/uploads && \
+    chown -R app:app /app
+
+# Switch to app user
+USER app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${CAMERA_PORT:-8000}/camera_status || exit 1
+
+# Expose port
+EXPOSE ${CAMERA_PORT:-8000}
+
+# Run application
+CMD ["python", "app.py"]
