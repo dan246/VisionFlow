@@ -403,7 +403,9 @@ We welcome contributions of all kinds! Here's how you can help:
 
 **⭐ If you find VisionFlow helpful, please consider giving it a star! ⭐**
 
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/VisionFlow?style=social)](https://github.com/yourusername/VisionFlow/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/network)
+
 
 *Made with ❤️ by the VisionFlow team*
 
