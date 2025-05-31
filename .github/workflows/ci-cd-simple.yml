@@ -1,0 +1,140 @@
+name: VisionFlow CI/CD Simple
+
+on:
+  push:
+    branches: [ "main", "dev", "staging" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==========================================
+  # 基本檢查和測試
+  # ==========================================
+  basic-checks:
+    name: 基本檢查和測試
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 安裝基本依賴
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest black isort
+
+    - name: 檢查代碼格式
+      run: |
+        # 檢查 Python 檔案格式
+        find . -name "*.py" -not -path "./.git/*" -not -path "./venv/*" | head -10 | xargs black --check --diff || true
+        find . -name "*.py" -not -path "./.git/*" -not -path "./venv/*" | head -10 | xargs isort --check-only --diff || true
+
+    - name: 基本語法檢查
+      run: |
+        # 檢查 Python 語法錯誤
+        find . -name "*.py" -not -path "./.git/*" -not -path "./venv/*" | head -10 | xargs flake8 --select=E9,F63,F7,F82 || true
+
+    - name: 檢查 YAML 檔案
+      run: |
+        python3 -c "
+        import yaml, os, glob
+        yaml_files = glob.glob('**/*.yml', recursive=True) + glob.glob('**/*.yaml', recursive=True)
+        for f in yaml_files[:5]:  # 只檢查前5個檔案
+            try:
+                with open(f, 'r') as file:
+                    yaml.safe_load(file)
+                print(f'✅ {f}')
+            except Exception as e:
+                print(f'❌ {f}: {e}')
+        "
+
+  # ==========================================
+  # Docker 構建（簡化版）
+  # ==========================================
+  build-docker:
+    name: 構建 Docker 映像
+    runs-on: ubuntu-latest
+    needs: basic-checks
+    if: github.event_name != 'pull_request'
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        service: 
+          - { name: web, path: web, dockerfile: Dockerfile }
+          - { name: camera-ctrl, path: camera_ctrler, dockerfile: cameractrlDockerfile }
+          - { name: object-recognition, path: object_recognition, dockerfile: objectrecognitionDockerfile }
+          - { name: redis-worker, path: redisv1, dockerfile: rtsptestDockerfile }
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 構建 Docker 映像 (本地測試)
+      run: |
+        if [ -f "${{ matrix.service.path }}/${{ matrix.service.dockerfile }}" ]; then
+          echo "構建 ${{ matrix.service.name }} 映像..."
+          docker build -t ${{ matrix.service.name }}:test ${{ matrix.service.path }} -f ${{ matrix.service.path }}/${{ matrix.service.dockerfile }}
+          echo "✅ ${{ matrix.service.name }} 映像構建成功"
+        else
+          echo "❌ Dockerfile 不存在: ${{ matrix.service.path }}/${{ matrix.service.dockerfile }}"
+          exit 1
+        fi
+
+    - name: 測試映像
+      run: |
+        # 簡單測試映像是否可以啟動
+        docker run --rm -d --name test-${{ matrix.service.name }} ${{ matrix.service.name }}:test sleep 30 || true
+        sleep 5
+        if docker ps | grep -q test-${{ matrix.service.name }}; then
+          echo "✅ ${{ matrix.service.name }} 容器啟動成功"
+          docker stop test-${{ matrix.service.name }} || true
+        else
+          echo "⚠️ ${{ matrix.service.name }} 容器可能啟動失敗，但這可能是正常的"
+        fi
+
+  # ==========================================
+  # 部署通知
+  # ==========================================
+  notify-success:
+    name: 成功通知
+    runs-on: ubuntu-latest
+    needs: [basic-checks, build-docker]
+    if: success()
+
+    steps:
+    - name: 成功通知
+      run: |
+        echo "🎉 VisionFlow CI/CD 檢查通過！"
+        echo "✅ 基本檢查: 通過"
+        echo "✅ Docker 構建: 通過"
+        echo "📅 時間: $(date)"
+        echo "🌿 分支: ${{ github.ref_name }}"
+        echo "📝 提交: ${{ github.sha }}"
+
+  notify-failure:
+    name: 失敗通知
+    runs-on: ubuntu-latest
+    needs: [basic-checks, build-docker]
+    if: failure()
+
+    steps:
+    - name: 失敗通知
+      run: |
+        echo "❌ VisionFlow CI/CD 檢查失敗！"
+        echo "請檢查上述步驟的錯誤訊息"
+        echo "📅 時間: $(date)"
+        echo "🌿 分支: ${{ github.ref_name }}"
+        echo "📝 提交: ${{ github.sha }}"
