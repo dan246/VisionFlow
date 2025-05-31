@@ -2,7 +2,14 @@
 
 # 🎯 VisionFlow
 
-**Intelligent Image Recognition & Monitoring System**
+**Intelligent Image Recognition & Monitoring System - Personal Learning Journey Record**
+
+> ⚠️ **Disclaimer & Project Nature**：  
+> 📖 This is a **personal learning journey record project** that documents my hands-on experience and insights while learning AI image recognition technology.  
+> 🎓 This project is **for learning reference only** and serves as a showcase and record of personal technical learning achievements.  
+> ⚠️ **Please do not use directly in production environments or commercial purposes**. The author is not responsible for any issues caused by using this project.  
+> 🔧 If you have actual application needs, please redesign, conduct security audits, and perform comprehensive testing based on this project.  
+> 💡 Welcome other learners to reference and exchange ideas, but please understand this is only a record of personal learning process, not a complete product-grade solution.
 
 [![Docker](https://img.shields.io/badge/Docker-20.10+-blue?style=flat-square&logo=docker)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.11+-green?style=flat-square&logo=python)](https://www.python.org/)
@@ -10,6 +17,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7+-red?style=flat-square&logo=redis)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+![Learning Project](https://img.shields.io/badge/Status-Learning%20Project-orange?style=flat-square)
 
 [🇹🇼 中文](./README.md) | [🇺🇸 English](./README_en.md)
 
@@ -19,9 +27,26 @@
 
 ## 📋 Project Overview
 
-**VisionFlow** is a powerful intelligent image recognition and monitoring system designed for modern visual surveillance needs. The system adopts a microservices architecture, integrating cutting-edge AI technology with cloud deployment solutions.
+**VisionFlow** is an implementation project during my learning process of AI image recognition and monitoring system development. This project documents my development journey and practical experience while learning microservice architecture, deep learning technology, and modern deployment solutions.
+
+> 📝 **Learning Journey Record**：  
+> This project completely documents my learning process from scratch with the following technologies:
+> - 🤖 Deep Learning & Computer Vision (YOLO model application)
+> - 🏗️ Microservice architecture design and implementation experience
+> - 🐳 Docker containerization technology and service orchestration
+> - 🌐 Flask Web framework and RESTful API development
+> - 🗄️ Database design and management (PostgreSQL + Redis)
+> - 📡 Real-time communication technology and WebSocket implementation
+
+> ⚠️ **Learning Project Declaration**：
+> - This is my personal **learning implementation record**, code may have imperfections
+> - Has not undergone complete security checks and enterprise-grade testing
+> - Main purpose is to **record learning process** and **technical experiments**
+> - If needed for actual projects, please evaluate and make necessary improvements yourself
 
 ### 🌟 Core Features
+
+> 💡 **Learning Focus**: Learning related technologies through implementing the following features
 
 - 🚀 **Real-time Image Recognition** - High-efficiency object detection using YOLO models
 - 🎥 **Multi-camera Support** - Simultaneous management of multiple camera streams
@@ -32,6 +57,8 @@
 - ⚡ **High-performance Architecture** - Redis caching and load balancing
 
 ### 🛠️ Technology Stack
+
+> 📚 **Learning Technology Stack**：
 
 - **Backend Framework**: Flask + RESTful API
 - **Database**: PostgreSQL (Primary) + Redis (Cache)
@@ -137,6 +164,9 @@
 
 ## 🚀 Quick Start
 
+> ⚠️ **Important Reminder**: The following steps are only suitable for **learning environments**. This is just a record of my personal learning process!  
+> 📚 If you are also learning related technologies, welcome to reference my implementation experience, but please note this is not a complete product-grade solution.
+
 > **Get VisionFlow up and running in minutes with our streamlined deployment process**
 
 ### 📋 Prerequisites
@@ -192,14 +222,14 @@ docker-compose logs -f backend
 | **2️⃣ Deploy** | `docker-compose up -d` | Launch all microservices |
 | **3️⃣ Migrate** | `flask db upgrade` | Initialize database schema |
 | **4️⃣ Configure** | Update `objectrecognition` | Add your AI model (`best.pt`) |
-| **5️⃣ Verify** | Visit `localhost:5000` | Access web interface |
+| **5️⃣ Verify** | Visit `localhost:5001` | Access web interface |
 
 ### ✅ Deployment Verification
 
 After deployment, verify the system is working correctly:
 
-- **🌐 Web Interface**: Open [http://localhost:5000](http://localhost:5000)
-- **📊 API Health**: Check [http://localhost:5000/api/health](http://localhost:5000/api/health)
+- **🌐 Web Interface**: Open [http://localhost:5001](http://localhost:5001)
+- **📊 API Health**: Check [http://localhost:5001/api/health](http://localhost:5001/api/health)
 - **🗄️ Database**: Verify PostgreSQL connection
 - **⚡ Redis Cache**: Confirm Redis is running
 - **🎥 Camera Stream**: Test video feed functionality
@@ -260,7 +290,7 @@ nano .env
 ```bash
 # Run Flask in development mode
 export FLASK_ENV=development
-flask run --host=0.0.0.0 --port=5000
+flask run --host=0.0.0.0 --port=5001
 ```
 
 </details>
@@ -284,7 +314,7 @@ pytest tests/ --cov=app --cov-report=html
 pytest tests/test_api.py -v
 
 # Load testing
-locust -f tests/load_test.py --host=http://localhost:5000
+locust -f tests/load_test.py --host=http://localhost:5001
 ```
 
 **Code Quality:**
@@ -346,19 +376,22 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 <td align="center">
 
 **📧 Email**<br>
-[sky328423@gmail.com](mailto:sky328423@gmail.com)
+[sky328423@gmail.com](mailto:sky328423@gmail.com)<br>
+*Learning exchange & technical discussion*
 
 </td>
 <td align="center">
 
 **🐛 Issues**<br>
-[GitHub Issues](https://github.com/yourusername/VisionFlow/issues)
+[GitHub Issues](https://github.com/yourusername/VisionFlow/issues)<br>
+*Bug reports & feature suggestions*
 
 </td>
 <td align="center">
 
 **💡 Discussions**<br>
-[GitHub Discussions](https://github.com/yourusername/VisionFlow/discussions)
+[GitHub Discussions](https://github.com/yourusername/VisionFlow/discussions)<br>
+*Learning insights & experience sharing*
 
 </td>
 </tr>
@@ -401,12 +434,17 @@ We welcome contributions of all kinds! Here's how you can help:
 
 <div align="center">
 
-**⭐ If you find VisionFlow helpful, please consider giving it a star! ⭐**
+**⭐ If this learning record is helpful to you, please give me a star! ⭐**
+
+**Thank you for your support! This is my motivation to continue learning and improving!**
 
 [![GitHub stars](https://img.shields.io/github/stars/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/network)
 
+---
 
-*Made with ❤️ by the VisionFlow team*
+**🚀 VisionFlow - Personal Learning Journey Record Project**
+
+*Recording my learning and growth in AI image recognition field 📚*
 
 </div>
