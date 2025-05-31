@@ -1,0 +1,367 @@
+name: VisionFlow CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "dev", "staging" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==========================================
+  # 代碼品質檢查和測試
+  # ==========================================
+  lint-and-test:
+    name: 程式碼檢查與測試
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+        service: ["web", "object_recognition", "camera_ctrler"]
+    
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: 快取 pip 依賴
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.service }}-${{ hashFiles(format('{0}/requirements*.txt', matrix.service)) }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.service }}-
+
+    - name: 安裝依賴
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest pytest-cov black isort safety bandit
+        if [ -f ${{ matrix.service }}/requirements.txt ]; then
+          pip install -r ${{ matrix.service }}/requirements.txt
+        fi
+        if [ -f ${{ matrix.service }}/requirements_new.txt ]; then
+          pip install -r ${{ matrix.service }}/requirements_new.txt
+        fi
+
+    - name: 代碼格式檢查 (Black)
+      run: |
+        black --check --diff ${{ matrix.service }}/
+
+    - name: 導入排序檢查 (isort)
+      run: |
+        isort --check-only --diff ${{ matrix.service }}/
+
+    - name: 代碼風格檢查 (flake8)
+      run: |
+        flake8 ${{ matrix.service }}/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 ${{ matrix.service }}/ --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+
+    - name: 安全漏洞檢查 (Safety)
+      run: |
+        if [ -f ${{ matrix.service }}/requirements.txt ]; then
+          safety check -r ${{ matrix.service }}/requirements.txt
+        fi
+
+    - name: 安全性掃描 (Bandit)
+      run: |
+        bandit -r ${{ matrix.service }}/ -f json -o bandit-report.json || true
+        if [ -f bandit-report.json ]; then
+          cat bandit-report.json
+        fi
+
+    - name: 運行單元測試
+      run: |
+        if [ -d ${{ matrix.service }}/tests ]; then
+          cd ${{ matrix.service }}
+          pytest tests/ -v --cov=./ --cov-report=xml --cov-report=html
+        else
+          echo "No tests directory found for ${{ matrix.service }}"
+        fi
+
+    - name: 上傳測試覆蓋率報告
+      if: matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./${{ matrix.service }}/coverage.xml
+        flags: ${{ matrix.service }}
+        name: codecov-${{ matrix.service }}
+
+  # ==========================================
+  # Docker 映像構建
+  # ==========================================
+  build-images:
+    name: 構建 Docker 映像
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        service: 
+          - name: web
+            dockerfile: Dockerfile
+            context: web
+          - name: camera-ctrl
+            dockerfile: cameractrlDockerfile
+            context: camera_ctrler
+          - name: object-recognition
+            dockerfile: objectrecognitionDockerfile
+            context: object_recognition
+          - name: redis-worker
+            dockerfile: rtsptestDockerfile
+            context: redisv1
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 登入 Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 提取中繼資料
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.name }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 構建並推送映像
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.service.context }}
+        file: ${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  # ==========================================
+  # 安全掃描
+  # ==========================================
+  security-scan:
+    name: 安全性掃描
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        service: ["web", "camera-ctrl", "object-recognition", "redis-worker"]
+
+    steps:
+    - name: 運行 Trivy 漏洞掃描
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: 上傳 Trivy 掃描結果
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # ==========================================
+  # 整合測試
+  # ==========================================
+  integration-test:
+    name: 整合測試
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: visionflow_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Docker Compose
+      run: |
+        # 建立測試用的 docker-compose 檔案
+        cat > docker-compose.test.yml << EOF
+        version: '3.8'
+        services:
+          web:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/web:${{ github.sha }}
+            environment:
+              - POSTGRES_HOST=host.docker.internal
+              - POSTGRES_PORT=5432
+              - POSTGRES_DB=visionflow_test
+              - POSTGRES_USER=testuser
+              - POSTGRES_PASSWORD=testpass
+              - REDIS_HOST=host.docker.internal
+              - REDIS_PORT=6379
+              - FLASK_ENV=testing
+            ports:
+              - "5000:5000"
+            depends_on:
+              - camera-ctrl
+              - object-recognition
+          
+          camera-ctrl:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/camera-ctrl:${{ github.sha }}
+            ports:
+              - "5001:5000"
+          
+          object-recognition:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/object-recognition:${{ github.sha }}
+            ports:
+              - "5002:5000"
+        EOF
+
+    - name: 啟動服務
+      run: |
+        docker-compose -f docker-compose.test.yml up -d
+        sleep 30  # 等待服務啟動
+
+    - name: 運行健康檢查
+      run: |
+        # 檢查服務是否正常運行
+        curl -f http://localhost:5000/health || exit 1
+        curl -f http://localhost:5001/health || exit 1
+        curl -f http://localhost:5002/health || exit 1
+
+    - name: 運行 API 測試
+      run: |
+        # 這裡可以添加更多的 API 測試
+        python -m pytest tests/integration/ -v || true
+
+    - name: 收集服務日誌
+      if: always()
+      run: |
+        docker-compose -f docker-compose.test.yml logs web > web.log
+        docker-compose -f docker-compose.test.yml logs camera-ctrl > camera-ctrl.log
+        docker-compose -f docker-compose.test.yml logs object-recognition > object-recognition.log
+
+    - name: 上傳測試結果
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: integration-test-logs
+        path: "*.log"
+
+    - name: 清理
+      if: always()
+      run: |
+        docker-compose -f docker-compose.test.yml down -v
+
+  # ==========================================
+  # 部署到測試環境
+  # ==========================================
+  deploy-staging:
+    name: 部署到測試環境
+    runs-on: ubuntu-latest
+    needs: [integration-test, security-scan]
+    if: github.ref == 'refs/heads/staging'
+    # environment: staging  # 需要在 GitHub repository 設定中先建立環境
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 部署到測試環境
+      run: |
+        echo "部署到測試環境..."
+        # 這裡可以添加實際的部署腳本
+        # 例如：kubectl, helm, docker-compose 等
+
+  # ==========================================
+  # 部署到生產環境
+  # ==========================================
+  deploy-production:
+    name: 部署到生產環境
+    runs-on: ubuntu-latest
+    needs: [integration-test, security-scan]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+    # environment: production  # 需要在 GitHub repository 設定中先建立環境
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 等待手動批准
+      # 注意：這需要安裝 trstringer/manual-approval action
+      # 或者可以使用 GitHub 內建的環境保護規則
+      run: |
+        echo "準備部署到生產環境..."
+        echo "分支: ${{ github.ref }}"
+        echo "提交: ${{ github.sha }}"
+        echo "作者: ${{ github.actor }}"
+        echo "請確認所有測試都已通過"
+
+    - name: 部署到生產環境
+      run: |
+        echo "部署到生產環境..."
+        # 這裡可以添加實際的生產部署腳本
+
+  # ==========================================
+  # 通知
+  # ==========================================
+  notify:
+    name: 部署通知
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always() && (needs.deploy-staging.result != 'skipped' || needs.deploy-production.result != 'skipped')
+
+    steps:
+    - name: 發送通知
+      run: |
+        if [ "${{ needs.deploy-production.result }}" == "success" ]; then
+          echo "✅ VisionFlow 已成功部署到生產環境"
+        elif [ "${{ needs.deploy-staging.result }}" == "success" ]; then
+          echo "✅ VisionFlow 已成功部署到測試環境"
+        else
+          echo "❌ VisionFlow 部署失敗"
+        fi
+        # 這裡可以添加實際的通知邏輯（如 Slack, Discord, Email 等）

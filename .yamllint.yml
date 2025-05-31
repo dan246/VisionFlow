@@ -1,0 +1,40 @@
+# YAML 語法檢查配置
+
+extends: default
+
+rules:
+  # 行長度限制
+  line-length:
+    max: 120
+    level: warning
+
+  # 縮排設定
+  indentation:
+    spaces: 2
+
+  # 註解設定
+  comments:
+    min-spaces-from-content: 1
+
+  # 空行設定
+  empty-lines:
+    max: 2
+    max-start: 0
+    max-end: 1
+
+  # 尾隨空格
+  trailing-spaces: enable
+
+  # 文件結尾
+  new-line-at-end-of-file: enable
+
+  # 引號設定
+  quoted-strings:
+    quote-type: double
+    required: only-when-needed
+
+ignore: |
+  .github/
+  node_modules/
+  venv/
+  .venv/

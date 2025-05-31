@@ -443,8 +443,8 @@ VisionFlow/
 
 **感謝您的支持！這是我持續學習和改進的動力！**
 
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/network)
+[![GitHub stars](https://img.shields.io/github/stars/dan246/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/dan246/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/network)
 
 ---
 

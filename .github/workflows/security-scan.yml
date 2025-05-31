@@ -1,0 +1,94 @@
+name: VisionFlow Security & Quality Check
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # 每週一凌晨 2 點運行
+  workflow_dispatch:
+
+jobs:
+  # ==========================================
+  # 依賴性安全掃描
+  # ==========================================
+  dependency-security:
+    name: 依賴性安全掃描
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ["web", "object_recognition", "camera_ctrler", "redisv1"]
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 安裝 safety
+      run: pip install safety
+
+    - name: 掃描依賴性漏洞
+      run: |
+        if [ -f ${{ matrix.service }}/requirements.txt ]; then
+          safety check -r ${{ matrix.service }}/requirements.txt --json > ${{ matrix.service }}-safety-report.json || true
+        fi
+
+    - name: 上傳安全報告
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: "*-safety-report.json"
+
+  # ==========================================
+  # 程式碼品質分析
+  # ==========================================
+  code-quality:
+    name: 程式碼品質分析
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: SonarCloud 掃描
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ==========================================
+  # 授權合規檢查
+  # ==========================================
+  license-check:
+    name: 授權合規檢查
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 安裝 pip-licenses
+      run: pip install pip-licenses
+
+    - name: 檢查授權
+      run: |
+        for service in web object_recognition camera_ctrler redisv1; do
+          if [ -f $service/requirements.txt ]; then
+            pip install -r $service/requirements.txt
+            pip-licenses --format=json --output-file=$service-licenses.json
+          fi
+        done
+
+    - name: 上傳授權報告
+      uses: actions/upload-artifact@v3
+      with:
+        name: license-reports
+        path: "*-licenses.json"

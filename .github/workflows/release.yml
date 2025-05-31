@@ -1,0 +1,224 @@
+name: VisionFlow Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==========================================
+  # 建立 Release
+  # ==========================================
+  create-release:
+    name: 建立 Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 產生更新日誌
+      id: changelog
+      run: |
+        # 從 git log 產生更新日誌
+        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+        git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: 建立 Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: VisionFlow ${{ github.ref }}
+        body: |
+          ## 🎯 VisionFlow ${{ github.ref }}
+          
+          ### 📋 更新內容
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ### 🚀 部署方式
+          ```bash
+          # 下載並運行
+          wget https://github.com/${{ github.repository }}/releases/download/${{ github.ref }}/docker-compose.yml
+          docker-compose up -d
+          ```
+          
+          ### 📊 映像標籤
+          - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/web:${{ github.ref }}`
+          - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/camera-ctrl:${{ github.ref }}`
+          - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/object-recognition:${{ github.ref }}`
+          - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/redis-worker:${{ github.ref }}`
+        draft: false
+        prerelease: false
+
+  # ==========================================
+  # 構建並推送 Release 映像
+  # ==========================================
+  build-release-images:
+    name: 構建 Release 映像
+    runs-on: ubuntu-latest
+    needs: create-release
+    strategy:
+      matrix:
+        service: 
+          - name: web
+            dockerfile: Dockerfile
+            context: web
+          - name: camera-ctrl
+            dockerfile: cameractrlDockerfile
+            context: camera_ctrler
+          - name: object-recognition
+            dockerfile: objectrecognitionDockerfile
+            context: object_recognition
+          - name: redis-worker
+            dockerfile: rtsptestDockerfile
+            context: redisv1
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 設置 Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 登入 Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 提取版本號
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: 構建並推送 Release 映像
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.service.context }}
+        file: ${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.name }}:${{ steps.get_version.outputs.VERSION }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.name }}:latest
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # ==========================================
+  # 準備 Release 檔案
+  # ==========================================
+  prepare-release-assets:
+    name: 準備 Release 檔案
+    runs-on: ubuntu-latest
+    needs: create-release
+
+    steps:
+    - name: 檢出代碼
+      uses: actions/checkout@v4
+
+    - name: 提取版本號
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: 準備 docker-compose 檔案
+      run: |
+        # 更新 docker-compose.yml 中的映像標籤
+        sed -i.bak "s|build:|#build:|g" docker-compose.yaml
+        sed -i.bak "s|context: \./web|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/web:${{ steps.get_version.outputs.VERSION }}|g" docker-compose.yaml
+        sed -i.bak "s|dockerfile: Dockerfile|#dockerfile: Dockerfile|g" docker-compose.yaml
+        
+        # 建立部署說明
+        cat > DEPLOY_INSTRUCTIONS.md << EOF
+        # VisionFlow ${{ steps.get_version.outputs.VERSION }} 部署說明
+        
+        ## 快速部署
+        \`\`\`bash
+        # 1. 下載 docker-compose.yml
+        wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/docker-compose.yml
+        
+        # 2. 建立環境檔案
+        cp .env.example .env
+        # 編輯 .env 檔案設定您的環境變數
+        
+        # 3. 啟動服務
+        docker-compose up -d
+        
+        # 4. 檢查服務狀態
+        docker-compose ps
+        \`\`\`
+        
+        ## 服務存取
+        - Web 介面: http://localhost:5000
+        - API 文件: http://localhost:5000/docs
+        - 監控面板: http://localhost:5000/monitor
+        
+        ## 故障排除
+        檢視日誌：
+        \`\`\`bash
+        docker-compose logs -f [service_name]
+        \`\`\`
+        EOF
+
+    - name: 上傳 docker-compose.yml
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./docker-compose.yaml
+        asset_name: docker-compose.yml
+        asset_content_type: application/x-yaml
+
+    - name: 上傳環境檔案範例
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./.env.example
+        asset_name: .env.example
+        asset_content_type: text/plain
+
+    - name: 上傳部署說明
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./DEPLOY_INSTRUCTIONS.md
+        asset_name: DEPLOY_INSTRUCTIONS.md
+        asset_content_type: text/markdown
+
+  # ==========================================
+  # 通知
+  # ==========================================
+  notify-release:
+    name: Release 通知
+    runs-on: ubuntu-latest
+    needs: [build-release-images, prepare-release-assets]
+
+    steps:
+    - name: 提取版本號
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: 發送 Release 通知
+      run: |
+        echo "🎉 VisionFlow ${{ steps.get_version.outputs.VERSION }} 已成功發布！"
+        echo "📦 所有映像已推送到 Container Registry"
+        echo "📄 Release 檔案已準備完成"
+        # 這裡可以添加實際的通知邏輯

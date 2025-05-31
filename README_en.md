@@ -438,8 +438,9 @@ We welcome contributions of all kinds! Here's how you can help:
 
 **Thank you for your support! This is my motivation to continue learning and improving!**
 
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/yourusername/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/network)
+[![GitHub stars](https://img.shields.io/github/stars/dan246/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/dan246/VisionFlow?style=social)](https://github.com/dan246/VisionFlow/network)
+
 
 ---
 
