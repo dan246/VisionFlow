@@ -1,3 +1,38 @@
+# 環境變數和敏感檔案
+.env
+*.env
+.env.local
+.env.production
+.env.staging
+
+# AI 模型檔案
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.pb
+*.bin
+*.param
+*.mlmodel
+*.engine
+
+# 圖片和媒體檔案
+saved_images/
+frames/
+stream/
+image/
+
+# Redis 資料
+redis-data/
+
+# 日誌檔案
+*.log
+logs/
+*.log.*
+
+# 資料庫檔案
+db/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

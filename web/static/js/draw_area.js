@@ -1,6 +1,6 @@
 // 將所有代碼包裹在 IIFE 中，避免全域命名空間污染
 (() => {
-    const apiUrl = "http://localhost:5000";  // 後端的URL
+    const apiUrl = "http://localhost:5001";  // 後端的URL
     
     document.addEventListener('DOMContentLoaded', () => {
       const cameraSelectElement = document.getElementById('cameraSelect');
@@ -24,7 +24,7 @@
     
       // 加載攝影機列表
       function loadCameras() {
-        fetch(`${apiUrl}/cameras`, {
+        fetch(`${apiUrl}/camera/cameras`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
@@ -33,7 +33,7 @@
           if (response.status === 401) {
             // Token 失效，需要刷新
             return refreshAccessToken().then(() => {
-              return fetch(`${apiUrl}/cameras`, {
+              return fetch(`${apiUrl}/camera/cameras`, {
                 headers: {
                   'Authorization': `Bearer ${accessToken}`
                 }
@@ -120,7 +120,7 @@
             return;
           }
     
-          fetch(`${apiUrl}/token/refresh`, {
+          fetch(`${apiUrl}/auth/token/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh_token: storedRefreshToken })

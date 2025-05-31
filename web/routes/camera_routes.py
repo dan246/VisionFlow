@@ -1,148 +1,215 @@
 import jwt
 import datetime
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from extensions import db
 from models.camera import Camera
 from models.user import User
-from .auth_routes import token_required  # 確保引入了 token_required 裝飾器
-
-SECRET_KEY = "your_secret_key"  # 確保這個密鑰與生成 token 的密鑰一致
+from .auth_routes import token_required
 
 camera_bp = Blueprint('camera_bp', __name__)
 
-# 獲取當前用戶的攝影機
 @camera_bp.route('/cameras', methods=['GET'])
 @token_required
 def get_cameras(current_user):
-    print(f"Current user ID: {current_user.id}")  # 打印當前用戶 ID 調試
-    cameras = Camera.query.filter_by(user_id=current_user.id).all()
-    print(f"Number of cameras found: {len(cameras)}")  # 打印找到的攝影機數量
-    return jsonify([{
-        'id': camera.id,
-        'name': camera.name,
-        'stream_url': camera.stream_url,
-        'recognition': camera.recognition
-    } for camera in cameras]), 200
+    """獲取當前用戶的攝影機列表"""
+    try:
+        cameras = Camera.query.filter_by(user_id=current_user.id).all()
+        camera_list = []
+        
+        for camera in cameras:
+            camera_data = {
+                'id': camera.id,
+                'name': camera.name,
+                'stream_url': camera.stream_url,
+                'recognition': camera.recognition,
+                'created_at': camera.created_at.isoformat() if hasattr(camera, 'created_at') and camera.created_at else None,
+                'updated_at': camera.updated_at.isoformat() if hasattr(camera, 'updated_at') and camera.updated_at else None
+            }
+            camera_list.append(camera_data)
+        
+        current_app.logger.debug(f"User {current_user.username} requested {len(camera_list)} cameras")
+        return jsonify(camera_list), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching cameras for user {current_user.username}: {str(e)}")
+        return jsonify({'message': 'Failed to fetch cameras'}), 500
 
-# 更新攝影機信息 (使用 PATCH，接受部分更新)
 @camera_bp.route('/cameras/<int:camera_id>', methods=['PATCH'])
 @token_required
 def update_camera(current_user, camera_id):
-    # 取得請求中的資料
-    data = request.json
-
-    # 根據 camera_id 與當前用戶 ID 查詢攝影機
-    camera = Camera.query.filter_by(id=camera_id, user_id=current_user.id).first()
-
-    # 如果找不到攝影機，返回 404
-    if not camera:
-        return jsonify({'message': 'Camera not found or not authorized.'}), 404
-
-    # 更新攝影機的屬性，如果有提供
-    if 'name' in data:
-        # 檢查是否有相同名稱的攝影機已存在
-        existing_camera = Camera.query.filter_by(user_id=current_user.id, name=data['name']).first()
-        if existing_camera and existing_camera.id != camera_id:
-            return jsonify({'message': 'A camera with this name already exists.'}), 400
-        camera.name = data['name']
-
-    if 'stream_url' in data:
-        camera.stream_url = data['stream_url']
-
-    if 'recognition' in data:
-        camera.recognition = data['recognition']
-
+    """更新攝影機資訊（部分更新）"""
     try:
-        # 保存更新
+        camera = Camera.query.filter_by(id=camera_id, user_id=current_user.id).first()
+        
+        if not camera:
+            return jsonify({'message': 'Camera not found or access denied'}), 404
+        
+        data = request.json
+        if not data:
+            return jsonify({'message': 'No data provided'}), 400
+        
+        # 更新允許的欄位
+        allowed_fields = ['name', 'stream_url', '']
+        updated_fields = []
+        
+        for field in allowed_fields:
+            if field in data:
+                if field == 'name':
+                    # 檢查名稱是否重複
+                    existing_camera = Camera.query.filter(
+                        Camera.user_id == current_user.id,
+                        Camera.name == data[field],
+                        Camera.id != camera_id
+                    ).first()
+                    if existing_camera:
+                        return jsonify({'message': 'Camera name already exists'}), 400
+                
+                if hasattr(camera, field):
+                    setattr(camera, field, data[field])
+                    updated_fields.append(field)
+        
+        if not updated_fields:
+            return jsonify({'message': 'No valid fields to update'}), 400
+        
+        # 更新修改時間（如果模型有這個欄位）
+        if hasattr(camera, 'updated_at'):
+            camera.updated_at = datetime.datetime.utcnow()
+        
         db.session.commit()
-        # 返回更新後的攝影機資訊
+        
+        current_app.logger.info(f"Camera {camera_id} updated by user {current_user.username}: {updated_fields}")
         return jsonify({
             'message': 'Camera updated successfully',
-            'id': camera.id,
-            'name': camera.name,
-            'stream_url': camera.stream_url,
-            'recognition': camera.recognition
+            'updated_fields': updated_fields,
+            'camera': {
+                'id': camera.id,
+                'name': camera.name,
+                'stream_url': camera.stream_url,
+                'recognition': camera.recognition
+            }
         }), 200
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'An error occurred while updating the camera.'}), 500
+        current_app.logger.error(f"Error updating camera {camera_id}: {str(e)}")
+        return jsonify({'message': 'Failed to update camera'}), 500
 
-
-# 添加攝影機並與當前用戶關聯
 @camera_bp.route('/cameras', methods=['POST'])
 @token_required
 def add_camera(current_user):
-    data = request.json
-
-    # 檢查必填字段
-    if not data.get('name') or not data.get('stream_url'):
-        return jsonify({'message': 'Name and stream_url are required.'}), 400
-
-    # 檢查攝影機名稱是否已存在
-    existing_camera = Camera.query.filter_by(user_id=current_user.id, name=data['name']).first()
-    if existing_camera:
-        return jsonify({'message': 'A camera with this name already exists.'}), 400
-
-    new_camera = Camera(
-        name=data['name'],
-        stream_url=data['stream_url'],
-        recognition=data.get('recognition'),
-        user_id=current_user.id  # 將攝影機與當前用戶關聯
-    )
+    """新增攝影機"""
     try:
+        data = request.json
+        
+        if not data or not all(k in data for k in ('name', 'stream_url')):
+            return jsonify({'message': 'Missing required fields: name, stream_url'}), 400
+        
+        # 驗證輸入
+        if not data['name'].strip():
+            return jsonify({'message': 'Camera name cannot be empty'}), 400
+        
+        if not data['stream_url'].strip():
+            return jsonify({'message': 'Stream URL cannot be empty'}), 400
+        
+        # 檢查是否已存在相同名稱的攝影機
+        existing_camera = Camera.query.filter_by(
+            name=data['name'].strip(), 
+            user_id=current_user.id
+        ).first()
+        
+        if existing_camera:
+            return jsonify({'message': 'Camera with this name already exists'}), 400
+        
+        new_camera = Camera(
+            name=data['name'].strip(),
+            stream_url=data['stream_url'].strip(),
+            recognition=data.get('recognition', 'default'),
+            user_id=current_user.id
+        )
+        
         db.session.add(new_camera)
         db.session.commit()
-        # 返回新增攝影機的詳細信息，包括 ID
+        
+        current_app.logger.info(f"New camera '{data['name']}' added by user {current_user.username}")
         return jsonify({
             'message': 'Camera added successfully',
-            'id': new_camera.id,
-            'name': new_camera.name,
-            'stream_url': new_camera.stream_url,
-            'recognition': new_camera.recognition
+            'camera': {
+                'id': new_camera.id,
+                'name': new_camera.name,
+                'stream_url': new_camera.stream_url,
+                'recognition': new_camera.recognition
+            }
         }), 201
+        
     except Exception as e:
         db.session.rollback()
-        # 檢查是否因為唯一約束違反導致的錯誤
-        if 'UNIQUE constraint' in str(e):
-            return jsonify({'message': 'A camera with this name already exists.'}), 400
-        return jsonify({'message': 'An error occurred while adding the camera.'}), 500
+        current_app.logger.error(f"Error adding camera: {str(e)}")
+        return jsonify({'message': 'Failed to add camera'}), 500
 
-
-# 新增的刪除攝影機路由
 @camera_bp.route('/cameras/<int:camera_id>', methods=['DELETE'])
 @token_required
 def delete_camera(current_user, camera_id):
-    camera = Camera.query.filter_by(id=camera_id, user_id=current_user.id).first()
-    if not camera:
-        return jsonify({'message': 'Camera not found or not authorized.'}), 404
-    
+    """刪除攝影機"""
     try:
+        camera = Camera.query.filter_by(id=camera_id, user_id=current_user.id).first()
+        
+        if not camera:
+            return jsonify({'message': 'Camera not found or access denied'}), 404
+        
+        camera_name = camera.name
         db.session.delete(camera)
         db.session.commit()
-        return jsonify({'message': 'Camera deleted successfully.'}), 200
+        
+        current_app.logger.info(f"Camera '{camera_name}' deleted by user {current_user.username}")
+        return jsonify({'message': 'Camera deleted successfully'}), 200
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'An error occurred while deleting the camera.'}), 500
+        current_app.logger.error(f"Error deleting camera {camera_id}: {str(e)}")
+        return jsonify({'message': 'Failed to delete camera'}), 500
 
-# 獲取所有攝影機（不分使用者，供 Redis 使用）
 @camera_bp.route('/cameras/all', methods=['GET'])
 def get_all_cameras():
-    # 返回所有攝影機
-    cameras = Camera.query.all()
-    return jsonify([{
-        'id': camera.id,
-        'name': camera.name,
-        'stream_url': camera.stream_url,
-        'recognition': camera.recognition,
-        'user_id': camera.user_id  # 包括 user_id 以便追蹤每個攝影機的擁有者
-    } for camera in cameras]), 200
+    """獲取所有攝影機（供系統內部使用）"""
+    try:
+        cameras = Camera.query.all()
+        camera_list = []
+        
+        for camera in cameras:
+            camera_data = {
+                'id': camera.id,
+                'name': camera.name,
+                'stream_url': camera.stream_url,
+                'recognition': camera.recognition,
+                'user_id': camera.user_id
+            }
+            camera_list.append(camera_data)
+        
+        current_app.logger.debug(f"All cameras requested: {len(camera_list)} cameras")
+        return jsonify(camera_list), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching all cameras: {str(e)}")
+        return jsonify({'message': 'Failed to fetch cameras'}), 500
 
 @camera_bp.route('/users', methods=['GET'])
 def get_all_users():
-    users = User.query.all()
-    return jsonify([{
-        'id': user.id,
-        'username': user.username,
-        'email': user.email
-    } for user in users]), 200
-
+    """獲取所有用戶（供系統內部使用）"""
+    try:
+        users = User.query.all()
+        user_list = []
+        
+        for user in users:
+            user_data = {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email
+            }
+            user_list.append(user_data)
+        
+        current_app.logger.debug(f"All users requested: {len(user_list)} users")
+        return jsonify(user_list), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching all users: {str(e)}")
+        return jsonify({'message': 'Failed to fetch users'}), 500

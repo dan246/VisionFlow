@@ -1,6 +1,6 @@
 // register.js
 
-const apiUrl = "http://localhost:5000";  // 後端的URL
+const apiUrl = "http://localhost:5001";  // 後端的URL
 
 document.addEventListener('DOMContentLoaded', () => {
   const registerForm = document.getElementById('registerFormElement');
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const password = document.getElementById('registerPassword').value.trim();
 
     try {
-      const response = await fetch(`${apiUrl}/register`, {
+      const response = await fetch(`${apiUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })

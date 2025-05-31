@@ -1,14 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Camera Controller Service
+Enhanced with configuration management and error handling.
+"""
+
 from flask import Flask, request, jsonify, send_file, render_template, Response
 from flask_restx import Api, Resource, fields
-from redis_utils import init_redis, CameraSnapFetcher, get_all_camera_status
-from camera_manager import CameraManager
+from flask_cors import CORS
 import threading
 import time
 from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageDraw
 import base64
 import io
-from flask_cors import CORS
 import os
 from urllib.parse import unquote
 from werkzeug.utils import safe_join
@@ -16,119 +20,215 @@ import logging
 import sys
 import json
 
-app = Flask(__name__)
-api = Api(app)
-CORS(app)
-# 初始化 Redis
-r = init_redis()
+# Local imports
+from redis_utils import init_redis, CameraSnapFetcher, get_all_camera_status
+from camera_manager import CameraManager
+from config import config
 
-manager = CameraManager()
-manager.run()
+# Setup logging
+config.setup_logging()
+logger = logging.getLogger(__name__)
+
+# Initialize Flask app
+app = Flask(__name__)
+api = Api(app, doc='/docs/', title='Camera Controller API', version='1.0')
+
+# Configure CORS
+CORS(app, origins=config.CORS_ORIGINS)
+
+# Initialize Redis with error handling
+try:
+    r = init_redis()
+    logger.info("Redis connection established successfully")
+except Exception as e:
+    logger.error(f"Failed to connect to Redis: {e}")
+    sys.exit(1)
+
+# Initialize camera manager with error handling
+try:
+    manager = CameraManager()
+    manager.run()
+    logger.info("Camera manager initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize camera manager: {e}")
+    sys.exit(1)
 
 
 @api.route('/camera_status')
 class CameraStatus(Resource):
+    """獲取所有相機狀態的 API 端點"""
+    
     def get(self):
-        status = get_all_camera_status(r)
-        return status, 200
+        """獲取所有相機的狀態信息"""
+        try:
+            status = get_all_camera_status(r)
+            logger.debug(f"Retrieved camera status for {len(status)} cameras")
+            return {
+                'success': True,
+                'data': status,
+                'count': len(status)
+            }, 200
+        except Exception as e:
+            logger.error(f"Failed to get camera status: {e}")
+            return {
+                'success': False,
+                'error': 'Failed to retrieve camera status',
+                'message': str(e)
+            }, 500
 
-# 獲取最新快照
 @app.route('/get_snapshot/<camera_id>')
 def get_latest_frame(camera_id):
-    image_data = r.get(f'camera_{camera_id}_latest_frame')
-    if image_data:
-        return Response(image_data, mimetype='image/jpeg')
-    else:
+    """獲取指定相機的最新快照"""
+    try:
+        # 驗證 camera_id
+        if not camera_id or not isinstance(camera_id, str):
+            logger.warning(f"Invalid camera_id: {camera_id}")
+            return send_file('no_single.jpg', mimetype='image/jpeg')
+            
+        image_data = r.get(f'camera_{camera_id}_latest_frame')
+        if image_data:
+            logger.debug(f"Retrieved snapshot for camera {camera_id}")
+            return Response(image_data, mimetype='image/jpeg')
+        else:
+            logger.warning(f"No snapshot available for camera {camera_id}")
+            return send_file('no_single.jpg', mimetype='image/jpeg')
+    except Exception as e:
+        logger.error(f"Error getting snapshot for camera {camera_id}: {e}")
         return send_file('no_single.jpg', mimetype='image/jpeg')
 
-# 顯示圖片
 @app.route('/showimage/<path:image_path>')
 def get_image(image_path):
+    """顯示儲存的圖片檔案"""
     try:
-        return send_file(image_path, mimetype='image/jpeg')
-    except FileNotFoundError:
+        # 安全路徑處理
+        safe_path = safe_join(os.getcwd(), unquote(image_path))
+        if safe_path and os.path.exists(safe_path):
+            logger.debug(f"Serving image: {safe_path}")
+            return send_file(safe_path, mimetype='image/jpeg')
+        else:
+            logger.warning(f"Image not found: {image_path}")
+            return send_file('no_single.jpg', mimetype='image/jpeg')
+    except Exception as e:
+        logger.error(f"Error serving image {image_path}: {e}")
         return send_file('no_single.jpg', mimetype='image/jpeg')
 
-# 生成串流畫面
 def generate_frames(camera_id):
-    while True:
-        frame_key = f'camera_{camera_id}_latest_frame'
-        frame_data = r.get(frame_key)
-        if frame_data:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
-        time.sleep(0.1)
+    """生成相機串流畫面"""
+    frame_key = f'camera_{camera_id}_latest_frame'
+    consecutive_failures = 0
+    max_failures = 10
+    
+    logger.info(f"Starting frame generation for camera {camera_id}")
+    
+    while consecutive_failures < max_failures:
+        try:
+            frame_data = r.get(frame_key)
+            if frame_data:
+                consecutive_failures = 0  # 重設失敗計數
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
+            else:
+                consecutive_failures += 1
+                logger.debug(f"No frame data for camera {camera_id}, failures: {consecutive_failures}")
+                
+        except Exception as e:
+            consecutive_failures += 1
+            logger.error(f"Error generating frame for camera {camera_id}: {e}")
+            
+        time.sleep(config.STREAM_SLEEP_INTERVAL)
+    
+    logger.warning(f"Stopping frame generation for camera {camera_id} after {max_failures} consecutive failures")
 
 def generate_recognized_frames(camera_id):
-    polygons_key = f'polygons_{camera_id}'  # 多邊形存儲鍵
-    start_time_key = f'start_time_{camera_id}'  # 開始時間存儲鍵
-    end_time_key = f'end_time_{camera_id}'      # 結束時間存儲鍵
+    """生成帶有物件識別結果的串流畫面"""
+    polygons_key = f'polygons_{camera_id}'
+    start_time_key = f'start_time_{camera_id}'
+    end_time_key = f'end_time_{camera_id}'
+    frame_key = f'camera_{camera_id}_boxed_image'
+    
+    consecutive_failures = 0
+    max_failures = 10
+    
+    logger.info(f"Starting recognized frame generation for camera {camera_id}")
 
-    while True:
-        frame_key = f'camera_{camera_id}_boxed_image'
-        frame_data = r.get(frame_key)
-        
-        if frame_data:
-            # 將影像數據轉換成 PIL 影像格式
-            image = Image.open(io.BytesIO(frame_data)).convert("RGBA")
-            overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))  # 建立一個空的透明圖層
-            draw = ImageDraw.Draw(overlay)
+    while consecutive_failures < max_failures:
+        try:
+            frame_data = r.get(frame_key)
+            
+            if frame_data:
+                consecutive_failures = 0
+                # 將影像數據轉換成 PIL 影像格式
+                image = Image.open(io.BytesIO(frame_data)).convert("RGBA")
+                overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))  # 建立一個空的透明圖層
+                draw = ImageDraw.Draw(overlay)
 
-            # 獲取當前時間（當地時間）
-            current_time = datetime.now()
-            current_hour = current_time.hour
-            current_minute = current_time.minute
+                # 獲取當前時間（當地時間）
+                current_time = datetime.now()
+                current_hour = current_time.hour
+                current_minute = current_time.minute
 
-            # 獲取設定的開始和結束時間
-            start_time_str = r.get(start_time_key)
-            end_time_str = r.get(end_time_key)
+                # 獲取設定的開始和結束時間
+                start_time_str = r.get(start_time_key)
+                end_time_str = r.get(end_time_key)
 
-            in_time_interval = False
-            if start_time_str and end_time_str:
-                start_hour, start_minute = map(int, start_time_str.decode('utf-8').split(':'))
-                end_hour, end_minute = map(int, end_time_str.decode('utf-8').split(':'))
+                in_time_interval = False
+                if start_time_str and end_time_str:
+                    try:
+                        start_hour, start_minute = map(int, start_time_str.decode('utf-8').split(':'))
+                        end_hour, end_minute = map(int, end_time_str.decode('utf-8').split(':'))
 
-                # 檢查當前時間是否在設定的時間區段內
-                start_total_minutes = start_hour * 60 + start_minute
-                end_total_minutes = end_hour * 60 + end_minute
-                current_total_minutes = current_hour * 60 + current_minute
+                        # 檢查當前時間是否在設定的時間區段內
+                        start_total_minutes = start_hour * 60 + start_minute
+                        end_total_minutes = end_hour * 60 + end_minute
+                        current_total_minutes = current_hour * 60 + current_minute
 
-                if start_total_minutes <= current_total_minutes <= end_total_minutes:
-                    in_time_interval = True
+                        if start_total_minutes <= current_total_minutes <= end_total_minutes:
+                            in_time_interval = True
+                    except (ValueError, AttributeError) as e:
+                        logger.warning(f"Error parsing time interval for camera {camera_id}: {e}")
+                        in_time_interval = True
                 else:
-                    in_time_interval = False
+                    # 如果沒有設定時間區段，則視為不限制時間
+                    in_time_interval = True
+
+                # 加載並繪製多邊形
+                try:
+                    for key in r.scan_iter(f"{polygons_key}:*"):
+                        polygon_data = r.get(key)
+                        if polygon_data:
+                            polygon = json.loads(polygon_data)
+                            scaled_polygon = [(point['x'], point['y']) for point in polygon['points']]
+                            # 使用白色邊框，透明填充多邊形
+                            draw.polygon(scaled_polygon, outline="white", fill=(255, 255, 255, 80))
+                except Exception as e:
+                    logger.warning(f"Error drawing polygons for camera {camera_id}: {e}")
+
+                # 如果在時間區段內，對整個影像進行處理（例如，加上半透明覆蓋）
+                if in_time_interval:
+                    pass  # 如果需要，可以在這裡進行額外的處理
+                else:
+                    # 如果不在時間區段內，可能需要對影像進行不同的處理
+                    time_overlay = Image.new("RGBA", image.size, (0, 0, 0, 180))  # 深色半透明覆蓋
+                    overlay = Image.alpha_composite(overlay, time_overlay)
+
+                # 合併原影像與覆蓋圖層
+                combined_image = Image.alpha_composite(image, overlay).convert("RGB")
+
+                # 將繪製了多邊形的影像重新編碼為JPEG格式
+                img_io = io.BytesIO()
+                combined_image.save(img_io, 'JPEG')
+                img_io.seek(0)
+
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + img_io.getvalue() + b'\r\n')
             else:
-                # 如果沒有設定時間區段，則視為不限制時間
-                in_time_interval = True
-
-            # 加載並繪製多邊形
-            for key in r.scan_iter(f"{polygons_key}:*"):
-                polygon_data = r.get(key)
-                if polygon_data:
-                    polygon = json.loads(polygon_data)
-                    scaled_polygon = [(point['x'], point['y']) for point in polygon['points']]
-                    # 使用白色邊框，透明填充多邊形
-                    draw.polygon(scaled_polygon, outline="white", fill=(255, 255, 255, 80))  # 80 表示透明度
-
-            # 如果在時間區段內，對整個影像進行處理（例如，加上半透明覆蓋）
-            if in_time_interval:
-                pass  # 如果需要，可以在這裡進行額外的處理
-            else:
-                # 如果不在時間區段內，可能需要對影像進行不同的處理
-                time_overlay = Image.new("RGBA", image.size, (0, 0, 0, 180))  # 深色半透明覆蓋
-                overlay = Image.alpha_composite(overlay, time_overlay)
-
-            # 合併原影像與覆蓋圖層
-            combined_image = Image.alpha_composite(image, overlay).convert("RGB")
-
-            # 將繪製了多邊形的影像重新編碼為JPEG格式
-            img_io = io.BytesIO()
-            combined_image.save(img_io, 'JPEG')
-            img_io.seek(0)
-
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + img_io.getvalue() + b'\r\n')
-        
+                consecutive_failures += 1
+                logger.debug(f"No frame data for camera {camera_id}, failures: {consecutive_failures}")
+                
+        except Exception as e:
+            consecutive_failures += 1
+            logger.error(f"Error generating recognized frame for camera {camera_id}: {e}")
+            
         time.sleep(0.1)
 
 # 辨識串流路由

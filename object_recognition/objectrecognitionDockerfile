@@ -1,24 +1,49 @@
-FROM pytorch/pytorch:latest
+# Enhanced Object Recognition Service Dockerfile
+FROM python:3.11-slim
 
-RUN groupadd -g 1000 ubuntu && \
-    useradd -u 1000 -g 1000 -m ubuntu
-# RUN chown -R ubuntu:ubuntu /app/frames
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
 
-# 設置工作目錄
+# Create app user
+RUN groupadd -r app && useradd -r -g app app
+
+# Install system dependencies for OpenCV and ML libraries
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libgl1-mesa-glx \
+    libgthread-2.0-0 \
+    libgtk-3-0 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set work directory
 WORKDIR /app
 
-# 複製當前目錄下的所有文件到容器內的 /app 中
-COPY . /app
-# 安裝PyAudio依賴
-RUN apt-get update \
-    && apt-get install -y portaudio19-dev python3-pyaudio pulseaudio libgl1-mesa-glx
+# Copy requirements first for better caching
+COPY requirements_new.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 安裝必要的 Python 套件
-RUN pip install --no-cache-dir numpy transformers  soundfile SpeechRecognition
+# Copy application code
+COPY . .
 
-RUN conda install pyaudio -y
-RUN pip install tqdm 
-RUN pip install ultralytics==8.2.23 --no-deps 
-RUN pip install opencv-python-headless aiohttp matplotlib pandas datasets timm flask opencv-python redis supervision
-RUN pip install --upgrade ultralytics
-USER ubuntu
+# Create necessary directories and set permissions
+RUN mkdir -p saved_images/raw_images saved_images/annotated_images saved_images/stream logs && \
+    chown -R app:app /app
+
+# Switch to app user
+USER app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD python -c "import redis; r=redis.Redis(host='${REDIS_HOST:-redis}', port=${REDIS_PORT:-6379}); r.ping()" || exit 1
+
+# Run application
+CMD ["python", "app.py"]

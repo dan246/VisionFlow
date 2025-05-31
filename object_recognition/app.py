@@ -1,9 +1,16 @@
+"""
+Object Recognition Service
+Enhanced with configuration management and error handling.
+"""
+
 import logging
 import asyncio
 import time
 import datetime
 import os
+import sys
 from tempfile import NamedTemporaryFile
+from typing import Dict, Any, Optional
 
 import cv2
 import numpy as np
@@ -17,102 +24,163 @@ from supervision.draw.color import Color
 from ultralytics import YOLO
 
 # 本地套件
+from config.config import Config
 from ApiService import ApiService
 from image_storage import ImageStorage
 from logging_config import configure_logging
 from model_config import MODEL_CONFIG
 
 class MainApp:
+    """Object Recognition Main Application"""
+    
     def __init__(self):
-
-        # 日誌
+        # 初始化配置
+        self.config = Config()
+        
+        # 設置日誌
         configure_logging()  
         self.logger = logging.getLogger('MainApp')
         self.time_logger = logging.getLogger('TimeLogger')
-
-        self.redis_host = 'redis'
-        self.redis_port = 6379
-        self.r = redis.Redis(host=self.redis_host, port=self.redis_port, db=0)
-        self.image_storage = ImageStorage(self.r)
-
+        
+        # Redis 連接配置
+        self.redis_host = self.config.REDIS_HOST
+        self.redis_port = self.config.REDIS_PORT
+        
+        # 初始化 Redis 連接
+        self._init_redis()
+        
+        # 初始化目錄和模型
         self.init_dirs()
         self.init_models()
 
-        self.api_service = ApiService(base_url=os.getenv("API_SERVICE_URL"))
+        # API 服務初始化
+        api_url = self.config.API_SERVICE_URL or "http://web:5000"
+        self.api_service = ApiService(base_url=api_url)
         self.last_sent_timestamps = {}
 
-        # 設定休眠
-        self.SLEEP_INTERVAL = 0.1  
+        # 設定休眠間隔
+        self.SLEEP_INTERVAL = self.config.SLEEP_INTERVAL
 
         # 初始化每個攝影機的追蹤器和標註器
         self.trackers = {}
         self.trace_annotators = {}
+        
+        self.logger.info("MainApp initialized successfully")
+    
+    def _init_redis(self):
+        """Initialize Redis connection with error handling"""
+        try:
+            self.r = redis.Redis(
+                host=self.redis_host, 
+                port=self.redis_port, 
+                db=0,
+                decode_responses=False,
+                socket_timeout=5,
+                socket_connect_timeout=5
+            )
+            # Test connection
+            self.r.ping()
+            self.image_storage = ImageStorage(self.r)
+            self.logger.info(f"Redis connection established: {self.redis_host}:{self.redis_port}")
+        except Exception as e:
+            self.logger.error(f"Failed to connect to Redis: {e}")
+            sys.exit(1)
 
     def init_dirs(self):
-        """初始化儲存影像的目錄"""
+        """Initialize image storage directories with error handling"""
         start_time = time.time()
-        self.BASE_SAVE_DIR = "saved_images"
-        self.RAW_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "raw_images")
-        self.ANNOTATED_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "annotated_images")
-        self.STREAM_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "stream")
+        
+        try:
+            # 使用配置中的路徑
+            self.BASE_SAVE_DIR = self.config.BASE_SAVE_DIR
+            self.RAW_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "raw_images")
+            self.ANNOTATED_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "annotated_images")
+            self.STREAM_SAVE_DIR = os.path.join(self.BASE_SAVE_DIR, "stream")
 
-        for dir_path in [
-            self.RAW_SAVE_DIR,
-            self.ANNOTATED_SAVE_DIR,
-            self.STREAM_SAVE_DIR,
-        ]:
-            if not os.path.exists(dir_path):
-                os.makedirs(dir_path)
+            for dir_path in [
+                self.RAW_SAVE_DIR,
+                self.ANNOTATED_SAVE_DIR,
+                self.STREAM_SAVE_DIR,
+            ]:
+                if not os.path.exists(dir_path):
+                    os.makedirs(dir_path, exist_ok=True)
+                    self.logger.debug(f"Created directory: {dir_path}")
 
-        self.time_logger.info(
-            f"Directories initialized in {time.time() - start_time:.2f} seconds"
-        )
+            self.time_logger.info(
+                f"Directories initialized in {time.time() - start_time:.2f} seconds"
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to initialize directories: {e}")
+            raise
 
     def init_models(self):
-        """初始化模型並設定標註器"""
+        """Initialize YOLO models and annotators with error handling"""
         start_time = time.time()
 
-        # 用於存放模型的字典
-        self.models = {}      
+        try:
+            # 用於存放模型的字典
+            self.models = {}      
+            # 用於存放各模型的標註器
+            self.annotators = {}  
 
-        # 用於存放各模型的標註器
-        self.annotators = {}  
+            for model_name, config in MODEL_CONFIG.items():
+                try:
+                    model_paths = config["path"]
+                    model_path = model_paths[0]
+                    
+                    # 檢查模型檔案是否存在
+                    if not os.path.exists(model_path):
+                        self.logger.warning(f"Model file not found: {model_path}")
+                        continue
+                        
+                    self.models[model_name] = YOLO(model_path)
+                    self.logger.info(f"Model {model_name} loaded from {model_path}")
 
-        for model_name, config in MODEL_CONFIG.items():
-            model_paths = config["path"]
-            model_path = model_paths[0]
-            self.models[model_name] = YOLO(model_path)
-            self.logger.info(f"Model {model_name} loaded from {model_path}")
+                    # 初始化標註器
+                    self._init_annotators_for_model(model_name, config)
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to load model {model_name}: {e}")
+                    continue
 
-            annotators_config = config.get("annotators", {})
-            annotators = {}
+            if not self.models:
+                raise RuntimeError("No models were successfully loaded")
+                
+            self.time_logger.info(
+                f"Models initialized in {time.time() - start_time:.2f} seconds"
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize models: {e}")
+            raise
+    
+    def _init_annotators_for_model(self, model_name: str, config: Dict[str, Any]):
+        """Initialize annotators for a specific model"""
+        annotators_config = config.get("annotators", {})
+        annotators = {}
 
-            for annotator_name, annotator_settings in annotators_config.items():
+        for annotator_name, annotator_settings in annotators_config.items():
+            try:
                 annotator_type = annotator_settings.get("type")
+                thickness = annotator_settings.get("thickness", 2)
+                color = annotator_settings.get("color", None)
+                
                 if annotator_type == "BoxAnnotator":
-                    thickness = annotator_settings.get("thickness", 2)
-                    color = annotator_settings.get("color", None)
                     if color:
                         annotators[annotator_name] = sv.BoxAnnotator(
-                            thickness=thickness,
-                            color=color
+                            thickness=thickness, color=color
                         )
                     else:
-                        annotators[annotator_name] = sv.BoxAnnotator(
-                            thickness=thickness
-                        )
+                        annotators[annotator_name] = sv.BoxAnnotator(thickness=thickness)
+                        
                 elif annotator_type == "RoundBoxAnnotator":
-                    thickness = annotator_settings.get("thickness", 2)
-                    color = annotator_settings.get("color", None)
                     if color:
                         annotators[annotator_name] = sv.RoundBoxAnnotator(
-                            thickness=thickness,
-                            color=color
+                            thickness=thickness, color=color
                         )
                     else:
-                        annotators[annotator_name] = sv.RoundBoxAnnotator(
-                            thickness=thickness
-                        )
+                        annotators[annotator_name] = sv.RoundBoxAnnotator(thickness=thickness)
+                        
                 elif annotator_type == "LabelAnnotator":
                     text_position = annotator_settings.get("text_position", "TOP_CENTER")
                     text_thickness = annotator_settings.get("text_thickness", 2)
@@ -125,31 +193,12 @@ class MainApp:
                     )
                 else:
                     self.logger.warning(f"Unknown annotator type: {annotator_type}")
-            self.annotators[model_name] = annotators
-
-        self.time_logger.info(
-            f"Models and annotators initialized in {time.time() - start_time:.2f} seconds"
-        )
-
-    # async def fetch_camera_status(self, session):
-    #     """從 API 獲取攝影機狀態"""
-    #     start_time = time.time()
-    #     try:
-    #         async with session.get(
-    #             f"{os.getenv('CAMERA_SERVICE_URL')}/camera_status"
-    #         ) as response:
-    #             if response.status == 200:
-    #                 camera_status = await response.json()
-    #                 self.logger.debug(f"Fetched camera_status: {camera_status}")
-    #                 return camera_status
-    #             else:
-    #                 self.logger.error(
-    #                     f"Failed to fetch camera status, HTTP status: {response.status}"
-    #                 )
-    #                 return {}
-    #     except Exception as e:
-    #         self.logger.error(f"Error fetching camera status: {str(e)}")
-    #         return {}
+                    
+            except Exception as e:
+                self.logger.error(f"Failed to initialize annotator {annotator_name}: {e}")
+                continue
+                
+        self.annotators[model_name] = annotators
 
     async def fetch_camera_status(self):
         """
