@@ -1,10 +1,20 @@
-name: Docker Image CI
+name: Legacy Docker Image CI (Dev Branch Only)
 
 on:
   push:
     branches: [ "dev" ]
+    paths:
+      - 'web/**'
+      - 'camera_ctrler/**'
+      - 'object_recognition/**'
+      - 'redisv1/**'
   pull_request:
     branches: [ "dev" ]
+    paths:
+      - 'web/**'
+      - 'camera_ctrler/**'
+      - 'object_recognition/**'
+      - 'redisv1/**'
 
 jobs:
   build-backend:
