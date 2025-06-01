@@ -282,11 +282,15 @@ class MainApp:
     def call_model_single(self, camera_id, image, mask, model_type, camera_info):
         """使用指定的模型處理單個攝影機的影像"""
         start_time = time.time()
-        notify_message = {
+        print(f"[DEBUG] call_model_single started for camera {camera_id} with model {model_type}")
+        
+        notify_message_map = {
             "model1": "模型1檢測",
             "model2": "模型2檢測",
             "model3": "模型3檢測",
         }
+        notify_message = notify_message_map.get(model_type, f"模型 {model_type} 檢測")
+        print(f"[DEBUG] notify_message set to: {notify_message}")
 
         model = self.models[model_type]
         model_config = MODEL_CONFIG[model_type]
@@ -319,6 +323,9 @@ class MainApp:
         annotated_image, detection_flag, label = self.annotate_image(
             image, detections, mask, model.names, camera_info, model_type
         )
+        
+        self.logger.info(f"Detection results - camera_id: {camera_id}, detection_flag: {detection_flag}, label: {label}, notify_message: {notify_message}")
+        print(f"[DEBUG] Detection results - camera_id: {camera_id}, detection_flag: {detection_flag}, label: {label}, notify_message: {notify_message}")
 
         # 保存帶框圖像到單獨資料夾（DEBUG用）
         debug_folder = os.path.join(self.BASE_SAVE_DIR, "debug_detected")
@@ -451,9 +458,67 @@ class MainApp:
         redis_key = f"camera_{camera_id}_boxed_image"
         self.image_storage.save_image(redis_key, annotated_image)
 
+        # 如果有檢測到目標，發送通知到 Web 後端
+        print(f"[DEBUG] About to check notification condition - detection_flag: {detection_flag}, notify_message: '{notify_message}', type: {type(notify_message)}")
+        if detection_flag and notify_message:
+            self.logger.info(f"Sending notification for camera {camera_id}: {notify_message}")
+            print(f"[DEBUG] Sending notification for camera {camera_id}: {notify_message}")
+            asyncio.create_task(self.send_notification_to_backend(
+                camera_id, 
+                notify_message, 
+                annotated_img_path,
+                label
+            ))
+        else:
+            self.logger.debug(f"No notification sent - detection_flag: {detection_flag}, notify_message: {notify_message}")
+            print(f"[DEBUG] No notification sent - detection_flag: {detection_flag}, notify_message: '{notify_message}'")
+
         self.time_logger.info(
             f"Save and notify completed in {time.time() - start_time:.2f} seconds"
         )
+
+    async def send_notification_to_backend(self, camera_id, message, image_path, label):
+        """發送通知到 Web 後端"""
+        print(f"[DEBUG] send_notification_to_backend called - camera_id: {camera_id}")
+        try:
+            # 使用預設的 admin 用戶 UUID（從資料庫查詢得到）
+            admin_account_uuid = "833cf292-8875-42ed-b7eb-102bcad5184c"
+            
+            # 構建通知數據
+            notification_data = {
+                "account_uuid": admin_account_uuid,
+                "camera_id": camera_id,
+                "message": f"偵測到 {label}: {message}",
+                "image_path": image_path
+            }
+            
+            # Web 後端 URL（從環境變數獲取，預設為 http://backend:5000）
+            web_backend_url = os.getenv('WEB_BACKEND_URL', 'http://backend:5000')
+            notification_endpoint = f"{web_backend_url}/api/notifications"
+            
+            print(f"[DEBUG] Sending POST to {notification_endpoint} with data: {notification_data}")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    notification_endpoint,
+                    json=notification_data,
+                    headers={'Content-Type': 'application/json'},
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    if response.status == 201:
+                        self.logger.info(f"Notification sent successfully for camera {camera_id}")
+                        print(f"[DEBUG] Notification sent successfully for camera {camera_id}")
+                    else:
+                        response_text = await response.text()
+                        self.logger.warning(
+                            f"Failed to send notification for camera {camera_id}. "
+                            f"Status: {response.status}, Response: {response_text}"
+                        )
+                        print(f"[DEBUG] Failed to send notification - Status: {response.status}, Response: {response_text}")
+                        
+        except Exception as e:
+            self.logger.error(f"Error sending notification to backend: {str(e)}")
+            print(f"[DEBUG] Exception in send_notification_to_backend: {str(e)}")
 
     async def main_loop(self):
         """

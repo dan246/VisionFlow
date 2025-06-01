@@ -14,6 +14,7 @@ const cameraSelectElement = document.getElementById('cameraSelect');
 const liveStreamImageElement = document.getElementById('liveStreamImage');
 const loginErrorElement = document.getElementById('loginError');  // 登入錯誤提示元素
 const drawAreaButton = document.getElementById('drawAreaButton');
+const notificationsButton = document.getElementById('notificationsButton');
 const updateCameraErrorElement = document.getElementById('updateCameraError');
 const updateCameraSuccessElement = document.getElementById('updateCameraSuccess');
 
@@ -49,6 +50,14 @@ if (drawAreaButton) {
   drawAreaButton.addEventListener('click', (e) => {
     e.preventDefault();
     window.location.href = '/draw_area';
+  });
+}
+
+// 智能通知按鈕事件監聽器
+if (notificationsButton) {
+  notificationsButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.location.href = '/notifications-settings';
   });
 }
 
@@ -97,6 +106,9 @@ function showDashboard() {
   logoutButtonElement.style.display = 'block';  // 顯示登出按鈕
   logoutButtonManagementElement.style.display = 'none';  // 隱藏管理視圖中的登出按鈕
   manageCamerasButton.style.display = 'block';  // 顯示管理攝影機按鈕
+  if (notificationsButton) {
+    notificationsButton.style.display = 'block';  // 顯示智能通知按鈕
+  }
   loadCameras();  // 加載攝影機列表以更新即時串流的選擇
 }
 

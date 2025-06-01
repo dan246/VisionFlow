@@ -3,6 +3,7 @@ Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.7
 Flask-CORS==4.0.1
 Flask-Login==0.6.3
+Flask-SocketIO==5.3.4
 psycopg2-binary==2.9.9
 python-dotenv==1.0.1
 PyJWT==2.8.0
@@ -10,4 +11,5 @@ requests==2.31.0
 gunicorn==21.2.0
 Werkzeug==3.0.3
 redis==5.0.7
+psutil==5.9.5
 ultralytics

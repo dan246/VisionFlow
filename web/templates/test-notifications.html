@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionFlow - 通知系統測試</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 2rem;
+            color: white;
+        }
+        .test-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 1rem 2rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        .test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        .status {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: inline-block;
+            margin: 0.5rem;
+        }
+        .toggle-switch.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+        .toggle-switch .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(24px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VisionFlow 通知系統測試</h1>
+        
+        <div class="status" id="status">
+            <h3>系統狀態</h3>
+            <p id="systemStatus">正在檢查系統狀態...</p>
+        </div>
+        
+        <div class="status">
+            <h3>測試切換開關</h3>
+            <label>測試開關: </label>
+            <div class="toggle-switch" id="testToggle">
+                <div class="toggle-slider"></div>
+            </div>
+        </div>
+        
+        <div class="status">
+            <h3>功能測試</h3>
+            <button class="test-button" onclick="testNotificationSystem()">測試通知系統初始化</button>
+            <button class="test-button" onclick="testAPICall()">測試 API 調用</button>
+            <button class="test-button" onclick="testToggleFunction()">測試切換開關功能</button>
+            <button class="test-button" onclick="showTestNotification()">顯示測試通知</button>
+        </div>
+        
+        <div class="status">
+            <h3>測試結果</h3>
+            <div id="testResults"></div>
+        </div>
+        
+        <a href="/notifications-settings" class="test-button">返回通知設定</a>
+    </div>
+
+    <!-- Notification Container -->
+    <div class="notification-container" id="testNotificationContainer"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/smart-notifications.js"></script>
+    
+    <script>
+        let notificationSystem;
+        let testResults = [];
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initializeTest();
+        });
+        
+        async function initializeTest() {
+            updateStatus('正在初始化測試環境...');
+            
+            try {
+                // 等待通知系統
+                await waitForNotificationSystem();
+                
+                updateStatus('✅ 通知系統已初始化');
+                setupToggleTest();
+                runAutomaticTests();
+                
+            } catch (error) {
+                updateStatus('❌ 初始化失敗: ' + error.message);
+            }
+        }
+        
+        async function waitForNotificationSystem() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkSystem = () => {
+                    attempts++;
+                    console.log(`檢查系統 (嘗試 ${attempts}/${maxAttempts})`);
+                    
+                    if (window.smartNotifications && window.SmartNotificationSystem) {
+                        notificationSystem = window.smartNotifications;
+                        console.log('✅ 使用現有通知系統');
+                        resolve();
+                    } else if (window.SmartNotificationSystem) {
+                        notificationSystem = new SmartNotificationSystem();
+                        console.log('🔧 創建新的通知系統實例');
+                        setTimeout(resolve, 1000);
+                    } else if (attempts < maxAttempts) {
+                        setTimeout(checkSystem, 100);
+                    } else {
+                        reject(new Error('無法載入通知系統'));
+                    }
+                };
+                checkSystem();
+            });
+        }
+        
+        function setupToggleTest() {
+            const toggle = document.getElementById('testToggle');
+            toggle.addEventListener('click', function() {
+                this.classList.toggle('active');
+                addTestResult('切換開關', this.classList.contains('active') ? '已啟用' : '已停用');
+            });
+        }
+        
+        async function runAutomaticTests() {
+            addTestResult('系統初始化', '成功');
+            
+            // 測試類型檢查
+            if (typeof SmartNotificationSystem === 'function') {
+                addTestResult('SmartNotificationSystem 類', '已載入');
+            } else {
+                addTestResult('SmartNotificationSystem 類', '未找到');
+            }
+            
+            // 測試實例
+            if (notificationSystem) {
+                addTestResult('通知系統實例', '已創建');
+            } else {
+                addTestResult('通知系統實例', '未創建');
+            }
+        }
+        
+        function testNotificationSystem() {
+            addTestResult('通知系統測試', notificationSystem ? '✅ 正常' : '❌ 失敗');
+            if (notificationSystem) {
+                addTestResult('通知系統類型', typeof notificationSystem);
+                addTestResult('可用方法', Object.getOwnPropertyNames(Object.getPrototypeOf(notificationSystem)).join(', '));
+            }
+        }
+        
+        async function testAPICall() {
+            try {
+                const response = await fetch('/api/notifications/settings');
+                if (response.ok) {
+                    const data = await response.json();
+                    addTestResult('API 調用', '✅ 成功');
+                    addTestResult('API 響應', JSON.stringify(data, null, 2));
+                } else {
+                    addTestResult('API 調用', '❌ 失敗 - 狀態: ' + response.status);
+                }
+            } catch (error) {
+                addTestResult('API 調用', '❌ 錯誤: ' + error.message);
+            }
+        }
+        
+        function testToggleFunction() {
+            const toggle = document.getElementById('testToggle');
+            const wasActive = toggle.classList.contains('active');
+            toggle.click();
+            const isActive = toggle.classList.contains('active');
+            
+            if (wasActive !== isActive) {
+                addTestResult('切換功能', '✅ 正常工作');
+            } else {
+                addTestResult('切換功能', '❌ 無法切換');
+            }
+        }
+        
+        function showTestNotification() {
+            if (notificationSystem && typeof notificationSystem.info === 'function') {
+                notificationSystem.info('測試通知', '這是一個測試通知訊息', {
+                    priority: 'medium',
+                    duration: 3000
+                });
+                addTestResult('顯示通知', '✅ 通知已發送');
+            } else {
+                addTestResult('顯示通知', '❌ 通知系統不可用');
+            }
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('systemStatus').textContent = message;
+            console.log('狀態: ' + message);
+        }
+        
+        function addTestResult(test, result) {
+            testResults.push({ test, result, time: new Date().toLocaleTimeString() });
+            updateTestResults();
+        }
+        
+        function updateTestResults() {
+            const container = document.getElementById('testResults');
+            container.innerHTML = testResults.map(r => 
+                `<div style="margin: 0.5rem 0; padding: 0.5rem; background: rgba(255,255,255,0.1); border-radius: 4px;">
+                    <strong>${r.test}:</strong> ${r.result} <small>(${r.time})</small>
+                </div>`
+            ).join('');
+        }
+    </script>
+</body>
+</html>

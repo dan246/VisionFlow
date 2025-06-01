@@ -4,6 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>VisionFlow 後台系統</title>
+  
+  <!-- PWA Meta tags -->
+  <meta name="description" content="VisionFlow 智能監控系統 - 專業的視覺監控與分析平台">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="VisionFlow">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/static/manifest.json">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+  
   <!-- 引入 Bootstrap -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <!-- Google Fonts -->
@@ -40,12 +56,31 @@
     <!-- Dashboard -->
     <div id="dashboard" style="display: none;">
       <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>攝影機儀表板</h2>
+        <h2>VisionFlow 智能監控系統</h2>
         <div class="button-group">
           <button id="manageCamerasButton" class="btn btn-primary">管理攝影機</button>
           <button id="drawAreaButton" class="btn btn-secondary">畫辨識區域</button>
+          <button id="notificationsButton" class="btn btn-info">🔔 智能通知</button>
           <button id="logoutButton" class="btn btn-danger">登出</button>
-          
+        </div>
+      </div>
+
+      <!-- 新功能展示區域 -->
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="alert alert-info" role="alert">
+            <h5 class="alert-heading">🚀 新功能上線！</h5>
+            <p class="mb-2">VisionFlow 現已支援 <strong>智能通知系統</strong> 和 <strong>PWA 功能</strong>：</p>
+            <ul class="mb-3">
+              <li>🔔 <strong>多通道通知</strong>：桌面、聲音、振動、郵件、LINE</li>
+              <li>📱 <strong>PWA 安裝</strong>：可安裝到手機主屏幕</li>
+              <li>⚡ <strong>實時通信</strong>：WebSocket 即時通知推送</li>
+              <li>📊 <strong>統計分析</strong>：通知歷史和效能監控</li>
+            </ul>
+            <a href="/notifications-settings" class="btn btn-info btn-sm">
+              <i class="fas fa-cog"></i> 立即體驗智能通知設定
+            </a>
+          </div>
         </div>
       </div>
 
@@ -139,5 +174,50 @@
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
   <script src="/static/js/app.js"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    // 註冊 Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/js/service-worker.js')
+          .then((registration) => {
+            console.log('✅ Service Worker registered successfully:', registration.scope);
+            
+            // 檢查是否有可用的更新
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // 新的 service worker 已安裝，提示用戶刷新
+                  if (confirm('🔄 應用程式有可用更新，是否立即重新載入？')) {
+                    window.location.reload();
+                  }
+                }
+              });
+            });
+          })
+          .catch((error) => {
+            console.error('❌ Service Worker registration failed:', error);
+          });
+      });
+    }
+
+    // PWA 安裝提示
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      
+      // 可以添加自定義的安裝按鈕
+      console.log('💾 PWA 可以安裝');
+    });
+
+    // 監聽 PWA 安裝事件
+    window.addEventListener('appinstalled', () => {
+      console.log('✅ PWA 已安裝成功');
+      deferredPrompt = null;
+    });
+  </script>
 </body>
 </html>

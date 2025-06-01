@@ -1,0 +1,152 @@
+{
+  "name": "VisionFlow 智能監控系統",
+  "short_name": "VisionFlow",
+  "description": "專業的智能視覺監控與分析系統",
+  "version": "1.0.0",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#3b82f6",
+  "background_color": "#ffffff",
+  "lang": "zh-TW",
+  "scope": "/",
+  "categories": ["security", "monitoring", "ai", "productivity"],
+  "icons": [
+    {
+      "src": "/static/images/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/images/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "VisionFlow 桌面版監控介面"
+    },
+    {
+      "src": "/static/images/screenshot-mobile.png",
+      "sizes": "360x640",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "VisionFlow 手機版監控介面"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "即時監控",
+      "short_name": "監控",
+      "description": "查看即時攝影機監控畫面",
+      "url": "/advanced-dashboard?tab=cameras",
+      "icons": [
+        {
+          "src": "/static/images/camera-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "警報通知",
+      "short_name": "警報",
+      "description": "查看最新警報通知",
+      "url": "/advanced-dashboard?tab=alerts",
+      "icons": [
+        {
+          "src": "/static/images/alert-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "分析報告",
+      "short_name": "報告",
+      "description": "查看智能分析報告",
+      "url": "/advanced-dashboard?tab=analytics",
+      "icons": [
+        {
+          "src": "/static/images/analytics-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/api/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "image",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+visionflow",
+      "url": "/handle?protocol=%s"
+    }
+  ],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
+}

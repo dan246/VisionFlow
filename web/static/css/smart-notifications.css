@@ -1,0 +1,470 @@
+/* Smart Notifications System CSS */
+
+/* 通知容器 */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    max-width: 400px;
+    pointer-events: none;
+}
+
+.notification-container * {
+    pointer-events: auto;
+}
+
+/* 通知項目 */
+.notification-item {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transform: translateX(100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.notification-item.show {
+    transform: translateX(0);
+}
+
+.notification-item.hide {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+/* 通知優先級樣式 */
+.notification-item.critical {
+    background: linear-gradient(135deg, #ff4757, #ff3838);
+    color: white;
+    animation: pulse-critical 1s infinite;
+}
+
+.notification-item.high {
+    background: linear-gradient(135deg, #ffa502, #ff6348);
+    color: white;
+}
+
+.notification-item.medium {
+    background: linear-gradient(135deg, #3742fa, #2f3542);
+    color: white;
+}
+
+.notification-item.low {
+    background: linear-gradient(135deg, #2ed573, #1e90ff);
+    color: white;
+}
+
+/* 通知標頭 */
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.notification-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin: 0;
+}
+
+.notification-time {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.notification-close:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 通知內容 */
+.notification-message {
+    font-size: 13px;
+    line-height: 1.4;
+    margin: 0;
+    word-wrap: break-word;
+}
+
+/* 通知動作 */
+.notification-actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+}
+
+.notification-action {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: inherit;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.notification-action:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+/* 進度條 */
+.notification-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.3);
+    transform-origin: left;
+    transition: transform linear;
+}
+
+/* 通知圖標 */
+.notification-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-right: 8px;
+    font-size: 12px;
+}
+
+.notification-icon.critical {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.notification-icon.high {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.notification-icon.medium {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.notification-icon.low {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* 通知設定面板 */
+.notification-settings-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10001;
+    overflow-y: auto;
+}
+
+.notification-settings-panel.open {
+    transform: translateX(0);
+}
+
+.notification-settings-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.notification-settings-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.notification-settings-content {
+    padding: 20px;
+}
+
+.setting-group {
+    margin-bottom: 24px;
+}
+
+.setting-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.setting-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.setting-control:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.setting-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 24px;
+    background: #ccc;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.toggle-switch.active {
+    background: #667eea;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.toggle-switch.active::after {
+    transform: translateX(26px);
+}
+
+/* 通知歷史 */
+.notification-history {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    background: #f9f9f9;
+}
+
+.notification-history-item {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+
+.notification-history-item:last-child {
+    border-bottom: none;
+}
+
+.notification-history-time {
+    color: #666;
+    font-size: 11px;
+}
+
+/* 通知統計 */
+.notification-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #f6f9fc, #e9ecef);
+    padding: 16px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 700;
+    color: #667eea;
+    margin: 0;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #666;
+    margin: 4px 0 0 0;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+    .notification-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+    
+    .notification-item {
+        margin-bottom: 8px;
+        padding: 12px;
+    }
+    
+    .notification-settings-panel {
+        width: 100%;
+    }
+    
+    .notification-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 動畫效果 */
+@keyframes pulse-critical {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(255, 71, 87, 0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* 通知觸發按鈕 */
+.notification-trigger {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9999;
+}
+
+.notification-trigger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.notification-trigger.has-unread {
+    animation: pulse-notification 2s infinite;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ff4757;
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+@keyframes pulse-notification {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* 暗色主題支援 */
+@media (prefers-color-scheme: dark) {
+    .notification-item {
+        background: rgba(30, 30, 30, 0.95);
+        color: white;
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .notification-settings-panel {
+        background: rgba(30, 30, 30, 0.95);
+        color: white;
+    }
+    
+    .setting-control {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+    
+    .notification-history {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.1));
+        color: white;
+    }
+}
+
+/* 列印樣式隱藏 */
+@media print {
+    .notification-container,
+    .notification-settings-panel,
+    .notification-trigger {
+        display: none !important;
+    }
+}

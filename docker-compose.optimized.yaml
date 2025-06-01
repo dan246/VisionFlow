@@ -72,7 +72,7 @@ services:
     volumes:
       - ./web:/app
       - ./shared:/app/shared
-      - web_logs:/app/logs
+      - ./logs:/app/logs
       - /etc/localtime:/etc/localtime:ro
     ports:
       - "${BACKEND_PORT:-5000}:5000"
@@ -84,7 +84,7 @@ services:
     command: >
       sh -c "
         python -m flask db upgrade &&
-        gunicorn -w ${GUNICORN_WORKERS:-4} -b 0.0.0.0:5000 --timeout ${GUNICORN_TIMEOUT:-120} --keep-alive ${GUNICORN_KEEPALIVE:-5} --max-requests ${GUNICORN_MAX_REQUESTS:-1000} --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER:-100} --access-logfile /app/logs/access.log --error-logfile /app/logs/error.log app:app
+        su -s /bin/sh app -c 'gunicorn -w ${GUNICORN_WORKERS:-4} -b 0.0.0.0:5000 --timeout ${GUNICORN_TIMEOUT:-120} --keep-alive ${GUNICORN_KEEPALIVE:-5} --max-requests ${GUNICORN_MAX_REQUESTS:-1000} --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER:-100} --access-logfile /app/logs/access.log --error-logfile /app/logs/error.log app:app'
       "
     networks:
       - visionflow-network
@@ -168,6 +168,7 @@ services:
       # Service Configuration
       API_SERVICE_URL: http://backend:5000
       CAMERA_SERVICE_URL: http://camera_ctrl:5000
+      WEB_BACKEND_URL: http://backend:5000
       
       # Redis Configuration
       REDIS_HOST: redis
@@ -273,8 +274,6 @@ services:
 
 volumes:
   redis_data:
-    driver: local
-  web_logs:
     driver: local
   camera_images:
     driver: local

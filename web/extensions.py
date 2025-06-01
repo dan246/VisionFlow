@@ -3,15 +3,16 @@
 """
 extensions.py
 集中管理與初始化 Flask 擴充套件 (Extension)，
-包含 SQLAlchemy、Flask-Migrate、Flask-Login 等物件實例化。
+包含 SQLAlchemy、Flask-Migrate、Flask-Login、Flask-SocketIO 等物件實例化。
 """
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
+from flask_socketio import SocketIO
 
 # -------------------------------------------------------------------
-# 1. 建立 SQLAlchemy, Migrate, LoginManager 等擴充套件物件
+# 1. 建立 SQLAlchemy, Migrate, LoginManager, SocketIO 等擴充套件物件
 #    這裡不傳入 app，改由 create_app() 中呼叫 init_app() 進行初始化
 # -------------------------------------------------------------------
 
@@ -19,6 +20,18 @@ from flask_login import LoginManager
 db = SQLAlchemy()
 
 # 建立 Migrate 實例，用於資料庫遷移 (使用 Flask-Migrate)
+migrate = Migrate()
+
+# 建立 LoginManager 實例，用於使用者登入管理
+login_manager = LoginManager()
+
+# 建立 SocketIO 實例，用於 WebSocket 即時通信
+socketio = SocketIO(
+    cors_allowed_origins="*",
+    async_mode='threading',
+    logger=True,
+    engineio_logger=True
+)
 migrate = Migrate()
 
 # 建立 LoginManager 實例，用於使用者登入管理 (使用 Flask-Login)

@@ -53,6 +53,7 @@ MODEL_CONFIG = {
             "person": get_confidence_threshold("model1", "person"),
             "bicycle": get_confidence_threshold("model1", "bicycle"),
             "car": get_confidence_threshold("model1", "car"),
+            "truck": get_confidence_threshold("model1", "truck"),
             "dog": get_confidence_threshold("model1", "dog"),
             "cat": get_confidence_threshold("model1", "cat"),
         },

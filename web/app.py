@@ -13,7 +13,7 @@ from flask_cors import CORS
 sys.path.append(os.path.join(os.path.dirname(__file__), 'shared'))
 
 from config import config  # 導入配置字典
-from extensions import db, migrate, login_manager  # 由 extensions.py 匯出
+from extensions import db, migrate, login_manager, socketio  # 由 extensions.py 匯出
 
 # 嘗試導入 shared logging，如果失敗則使用 Flask 默認的 logging
 try:
@@ -56,12 +56,18 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     # 3. 初始化 Flask-Login
     login_manager.init_app(app)
+    # 4. 初始化 Flask-SocketIO
+    socketio.init_app(app, cors_allowed_origins="*")
     
     # Configure CORS (允許跨域)
     CORS(app, origins=app.config.get('CORS_ORIGINS', ['*']))
     
     # 註冊藍圖
     register_blueprints(app)
+    
+    # 初始化 WebSocket 事件處理器
+    from routes.main_routes import init_socketio_events
+    init_socketio_events(socketio)
     
     # 設定登入頁面與訊息 (可依需求修改)
     login_manager.login_view = 'auth.login'
@@ -127,6 +133,7 @@ def register_blueprints(app):
     from routes.line_token_routes import line_token_bp
     from routes.email_recipient_routes import email_recipient_bp
     from routes.health_routes import health_bp
+    from routes.main_routes import api_bp, main_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(camera_bp, url_prefix='/camera')
@@ -134,13 +141,16 @@ def register_blueprints(app):
     app.register_blueprint(line_token_bp, url_prefix='/line')
     app.register_blueprint(email_recipient_bp, url_prefix='/email')
     app.register_blueprint(health_bp, url_prefix='/health')
+    app.register_blueprint(api_bp)  # 現代化 API 路由
+    app.register_blueprint(main_bp)  # 主要頁面路由
 
 # Create app instance
 app = create_app()
 
 if __name__ == '__main__':
-    # Development server
-    app.run(
+    # Development server with SocketIO support
+    socketio.run(
+        app,
         host='0.0.0.0', 
         port=int(os.environ.get('FLASK_PORT', 5000)),
         debug=os.environ.get('FLASK_ENV') == 'development'

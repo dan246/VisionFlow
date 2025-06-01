@@ -1,0 +1,59 @@
+# Core Flask Framework
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-CORS==4.0.1
+Flask-Login==0.6.3
+
+# Real-time Communication
+Flask-SocketIO==5.3.6
+python-socketio==5.8.0
+eventlet==0.33.3
+
+# Database Support
+psycopg2-binary==2.9.9
+redis==5.0.7
+
+# Security & Authentication
+PyJWT==2.8.0
+bcrypt==4.0.1
+cryptography==41.0.7
+
+# Environment & Configuration
+python-dotenv==1.0.1
+
+# HTTP & API
+requests==2.31.0
+urllib3==2.0.7
+
+# Production Server
+gunicorn==21.2.0
+Werkzeug==3.0.3
+
+# AI/ML Integration
+ultralytics==8.0.200
+opencv-python-headless==4.8.1.78
+numpy==1.24.4
+Pillow==10.0.1
+
+# Data Processing & Analytics
+pandas==2.1.3
+scipy==1.11.4
+
+# Monitoring & Logging
+prometheus-flask-exporter==0.23.0
+structlog==23.2.0
+
+# Task Queue & Background Jobs
+celery==5.3.4
+kombu==5.3.4
+
+# Caching & Performance
+Flask-Caching==2.1.0
+marshmallow==3.20.1
+
+# Development & Testing
+pytest==7.4.3
+pytest-flask==1.3.0
+black==23.11.0
+flake8==6.1.0

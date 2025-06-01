@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionFlow - 智能通知設定</title>
+    
+    <!-- Meta tags for PWA -->
+    <meta name="description" content="VisionFlow 智能通知系統設定 - 個人化通知偏好與多通道管理">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="VisionFlow Notifications">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+    
+    <!-- External Stylesheets -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link href="/static/css/smart-notifications.css" rel="stylesheet">
+    
+    <style>
+        /* Notifications Settings Specific Styles */
+        .settings-dashboard {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .settings-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .settings-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+
+        .settings-title {
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .settings-subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .settings-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card-title {
+            color: white;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+        .setting-label {
+            color: white;
+            font-weight: 500;
+        }
+
+        .setting-description {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        .setting-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+            width: 120px;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .priority-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin: 0.25rem;
+            display: inline-block;
+        }
+
+        .priority-critical {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+            border: 1px solid #ff4757;
+        }
+
+        .priority-high {
+            background: rgba(255, 165, 2, 0.2);
+            color: #ffa502;
+            border: 1px solid #ffa502;
+        }
+
+        .priority-medium {
+            background: rgba(55, 66, 250, 0.2);
+            color: #3742fa;
+            border: 1px solid #3742fa;
+        }
+
+        .priority-low {
+            background: rgba(46, 213, 115, 0.2);
+            color: #2ed573;
+            border: 1px solid #2ed573;
+        }
+
+        .test-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .stats-overview {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-overview {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .settings-title {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-dashboard">
+        <div class="settings-container">
+            <!-- Header Section -->
+            <div class="settings-header">
+                <h1 class="settings-title">
+                    <i class="fas fa-bell"></i>
+                    智能通知設定
+                </h1>
+                <p class="settings-subtitle">
+                    個人化您的通知偏好，打造最適合的監控體驗
+                </p>
+            </div>
+
+            <!-- Settings Grid -->
+            <div class="settings-grid">
+                <!-- 統計概覽 -->
+                <div class="settings-card stats-overview">
+                    <div class="stat-item">
+                        <div class="stat-number" id="totalNotifications">256</div>
+                        <div class="stat-label">總通知數</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="todayNotifications">18</div>
+                        <div class="stat-label">今日通知</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="readNotifications">242</div>
+                        <div class="stat-label">已讀通知</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="avgResponseTime">2.3</div>
+                        <div class="stat-label">平均回應時間(分)</div>
+                    </div>
+                </div>
+
+                <!-- 通知通道設定 -->
+                <div class="settings-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-broadcast-tower"></i>
+                        通知通道
+                    </h3>
+                    
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">桌面通知</div>
+                            <div class="setting-description">在瀏覽器中顯示通知</div>
+                        </div>
+                        <div class="toggle-switch" id="desktopNotifications">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">聲音提醒</div>
+                            <div class="setting-description">播放通知音效</div>
+                        </div>
+                        <div class="toggle-switch" id="soundNotifications">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">震動提醒</div>
+                            <div class="setting-description">手機震動通知</div>
+                        </div>
+                        <div class="toggle-switch" id="vibrationNotifications">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">郵件通知</div>
+                            <div class="setting-description">發送電子郵件</div>
+                        </div>
+                        <div class="toggle-switch" id="emailNotifications">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">LINE 通知</div>
+                            <div class="setting-description">LINE 訊息推送</div>
+                        </div>
+                        <div class="toggle-switch" id="lineNotifications">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 通知偏好設定 -->
+                <div class="settings-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-sliders-h"></i>
+                        通知偏好
+                    </h3>
+                    
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">通知顯示時間</div>
+                            <div class="setting-description">秒</div>
+                        </div>
+                        <input type="number" class="setting-input" id="displayDuration" value="5" min="1" max="30">
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">最大通知數量</div>
+                            <div class="setting-description">同時顯示的最大數量</div>
+                        </div>
+                        <input type="number" class="setting-input" id="maxNotifications" value="5" min="1" max="10">
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">通知位置</div>
+                            <div class="setting-description">螢幕顯示位置</div>
+                        </div>
+                        <select class="setting-input" id="notificationPosition">
+                            <option value="top-right">右上角</option>
+                            <option value="top-left">左上角</option>
+                            <option value="bottom-right">右下角</option>
+                            <option value="bottom-left">左下角</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">批量處理</div>
+                            <div class="setting-description">合併相似通知</div>
+                        </div>
+                        <div class="toggle-switch" id="batchNotifications">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">智能分組</div>
+                            <div class="setting-description">自動分組相關通知</div>
+                        </div>
+                        <div class="toggle-switch" id="smartGrouping">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 優先級設定 -->
+                <div class="settings-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-flag"></i>
+                        優先級設定
+                    </h3>
+                    
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">高優先級通知</div>
+                            <div class="setting-description">緊急事件立即通知</div>
+                        </div>
+                        <div>
+                            <span class="priority-badge priority-critical">Critical</span>
+                            <span class="priority-badge priority-high">High</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">一般優先級通知</div>
+                            <div class="setting-description">正常事件通知</div>
+                        </div>
+                        <div>
+                            <span class="priority-badge priority-medium">Medium</span>
+                            <span class="priority-badge priority-low">Low</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">只顯示重要通知</div>
+                            <div class="setting-description">過濾低優先級通知</div>
+                        </div>
+                        <div class="toggle-switch" id="importantOnly">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 安靜時間設定 -->
+                <div class="settings-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-moon"></i>
+                        安靜時間
+                    </h3>
+                    
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">啟用安靜時間</div>
+                            <div class="setting-description">指定時間內停止通知</div>
+                        </div>
+                        <div class="toggle-switch" id="quietHours">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">開始時間</div>
+                            <div class="setting-description">安靜時間開始</div>
+                        </div>
+                        <input type="time" class="setting-input" id="quietHoursStart" value="23:00">
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">結束時間</div>
+                            <div class="setting-description">安靜時間結束</div>
+                        </div>
+                        <input type="time" class="setting-input" id="quietHoursEnd" value="07:00">
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">緊急通知例外</div>
+                            <div class="setting-description">安靜時間仍顯示緊急通知</div>
+                        </div>
+                        <div class="toggle-switch" id="emergencyOverride">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 測試與診斷 -->
+                <div class="settings-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-flask"></i>
+                        測試與診斷
+                    </h3>
+                    
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">測試桌面通知</div>
+                            <div class="setting-description">發送測試通知</div>
+                        </div>
+                        <button class="test-button" id="testDesktop">
+                            <i class="fas fa-play"></i> 測試
+                        </button>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">測試聲音通知</div>
+                            <div class="setting-description">播放測試音效</div>
+                        </div>
+                        <button class="test-button" id="testSound">
+                            <i class="fas fa-volume-up"></i> 測試
+                        </button>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">測試所有通道</div>
+                            <div class="setting-description">全面測試通知功能</div>
+                        </div>
+                        <button class="test-button" id="testAll">
+                            <i class="fas fa-rocket"></i> 測試全部
+                        </button>
+                    </div>
+
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">清除通知歷史</div>
+                            <div class="setting-description">刪除所有通知記錄</div>
+                        </div>
+                        <button class="test-button" id="clearHistory" style="background: linear-gradient(45deg, #ff4757, #ff3838);">
+                            <i class="fas fa-trash"></i> 清除
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button type="button" class="btn btn-secondary" id="resetSettings">
+                    <i class="fas fa-undo"></i>
+                    重置預設值
+                </button>
+                <button type="button" class="btn btn-primary" id="saveSettings">
+                    <i class="fas fa-save"></i>
+                    儲存設定
+                </button>
+                <a href="/advanced-dashboard" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i>
+                    返回儀表板
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container for Settings Page -->
+    <div class="notification-container" id="settingsNotificationContainer"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/smart-notifications.js"></script>
+    
+    <script>
+        // 智能通知系統設定管理
+        let notificationSystem;
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            // 等待通知系統初始化
+            if (window.smartNotifications) {
+                notificationSystem = window.smartNotifications;
+            } else {
+                // 如果還沒初始化，創建一個新實例
+                notificationSystem = new SmartNotificationSystem();
+            }
+            
+            await initializeSettings();
+            setupEventListeners();
+            await loadStatistics();
+            
+            console.log('📋 Notification settings page initialized');
+        });
+
+        async function initializeSettings() {
+            try {
+                await loadSettings();
+                setupToggleSwitches();
+                setupInputFields();
+            } catch (error) {
+                console.error('Failed to initialize settings:', error);
+                notificationSystem.error('設定載入失敗', '無法載入通知設定，請重新整理頁面');
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                // 嘗試從 API 加載設定
+                const response = await fetch('/api/notifications/settings', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const serverSettings = await response.json();
+                    updateUIFromSettings(serverSettings);
+                } else {
+                    throw new Error('Failed to load from server');
+                }
+            } catch (error) {
+                console.warn('Loading settings from API failed, using local settings');
+                updateUIFromSettings({
+                    channels: notificationSystem.channels,
+                    settings: notificationSystem.settings
+                });
+            }
+        }
+
+        async function loadStatistics() {
+            try {
+                const stats = await notificationSystem.getStatistics();
+                updateStatisticsDisplay(stats);
+            } catch (error) {
+                console.error('Failed to load statistics:', error);
+                // 使用默認統計數據
+                const defaultStats = {
+                    totalNotifications: 0,
+                    todayNotifications: 0,
+                    readNotifications: 0,
+                    averageResponseTime: 0
+                };
+                updateStatisticsDisplay(defaultStats);
+            }
+        }
+
+        function updateStatisticsDisplay(stats) {
+            document.getElementById('totalNotifications').textContent = stats.totalNotifications || 0;
+            document.getElementById('todayNotifications').textContent = stats.todayNotifications || 0;
+            document.getElementById('readNotifications').textContent = stats.readNotifications || 0;
+            document.getElementById('avgResponseTime').textContent = 
+                stats.averageResponseTime ? (stats.averageResponseTime / 60).toFixed(1) : '0';
+        }
+
+        function updateUIFromSettings(settings) {
+            const { channels, settings: notificationSettings } = settings;
+            
+            // 更新通道開關
+            updateToggleSwitch('desktopNotifications', channels.desktop);
+            updateToggleSwitch('soundNotifications', channels.sound);
+            updateToggleSwitch('vibrationNotifications', channels.vibration);
+            updateToggleSwitch('emailNotifications', channels.email);
+            updateToggleSwitch('lineNotifications', channels.line);
+            
+            // 更新偏好設定
+            updateToggleSwitch('batchNotifications', notificationSettings.groupSimilar);
+            updateToggleSwitch('smartGrouping', notificationSettings.groupSimilar);
+            updateToggleSwitch('importantOnly', notificationSettings.importantOnly || false);
+            updateToggleSwitch('quietHours', notificationSettings.quietHours?.enabled || false);
+            
+            // 更新輸入字段
+            document.getElementById('displayDuration').value = notificationSettings.autoExpiry / 1000;
+            document.getElementById('maxNotifications').value = notificationSettings.maxNotifications;
+            document.getElementById('quietHoursStart').value = notificationSettings.quietHours?.start || '22:00';
+            document.getElementById('quietHoursEnd').value = notificationSettings.quietHours?.end || '08:00';
+        }
+
+        function updateToggleSwitch(id, isActive) {
+            const toggle = document.getElementById(id);
+            if (toggle) {
+                toggle.classList.toggle('active', isActive);
+            }
+        }
+
+        function setupToggleSwitches() {
+            const toggles = document.querySelectorAll('.toggle-switch');
+            toggles.forEach(toggle => {
+                toggle.addEventListener('click', handleToggleSwitch);
+            });
+        }
+
+        function setupInputFields() {
+            // 顯示時間設定
+            document.getElementById('displayDuration').addEventListener('change', async (e) => {
+                const value = parseInt(e.target.value) * 1000;
+                await updateSetting('autoExpiry', value);
+                showSettingUpdateNotification('displayDuration', e.target.value + ' 秒');
+            });
+
+            // 最大通知數設定
+            document.getElementById('maxNotifications').addEventListener('change', async (e) => {
+                const value = parseInt(e.target.value);
+                await updateSetting('maxNotifications', value);
+                showSettingUpdateNotification('maxNotifications', e.target.value);
+            });
+
+            // 安靜時間設定
+            document.getElementById('quietHoursStart').addEventListener('change', async (e) => {
+                await updateQuietHours();
+            });
+
+            document.getElementById('quietHoursEnd').addEventListener('change', async (e) => {
+                await updateQuietHours();
+            });
+        }
+
+        async function handleToggleSwitch(event) {
+            const toggle = event.currentTarget;
+            const isActive = toggle.classList.contains('active');
+            const newState = !isActive;
+            
+            toggle.classList.toggle('active', newState);
+            
+            const id = toggle.id;
+            try {
+                switch (id) {
+                    case 'desktopNotifications':
+                        await updateChannel('desktop', newState);
+                        break;
+                    case 'soundNotifications':
+                        await updateChannel('sound', newState);
+                        break;
+                    case 'vibrationNotifications':
+                        await updateChannel('vibration', newState);
+                        break;
+                    case 'emailNotifications':
+                        await updateChannel('email', newState);
+                        break;
+                    case 'lineNotifications':
+                        await updateChannel('line', newState);
+                        break;
+                    case 'batchNotifications':
+                        await updateSetting('groupSimilar', newState);
+                        break;
+                    case 'smartGrouping':
+                        await updateSetting('groupSimilar', newState);
+                        break;
+                    case 'importantOnly':
+                        await updateSetting('importantOnly', newState);
+                        break;
+                    case 'quietHours':
+                        await updateQuietHours(newState);
+                        break;
+                }
+                
+                showSettingUpdateNotification(id, newState);
+            } catch (error) {
+                console.error('Failed to update setting:', error);
+                // 回復切換狀態
+                toggle.classList.toggle('active', !newState);
+                notificationSystem.error('設定更新失敗', '無法保存設定更改');
+            }
+        }
+
+        async function updateChannel(channel, state) {
+            const newChannels = { ...notificationSystem.channels, [channel]: state };
+            await notificationSystem.updateSettings({ channels: newChannels });
+        }
+
+        async function updateSetting(key, value) {
+            const newSettings = { ...notificationSystem.settings, [key]: value };
+            await notificationSystem.updateSettings({ settings: newSettings });
+        }
+
+        async function updateQuietHours(enabled = null) {
+            const quietHoursEnabled = enabled !== null ? enabled : 
+                document.getElementById('quietHours').classList.contains('active');
+            const start = document.getElementById('quietHoursStart').value;
+            const end = document.getElementById('quietHoursEnd').value;
+            
+            const quietHours = {
+                enabled: quietHoursEnabled,
+                start: start,
+                end: end
+            };
+            
+            const newSettings = { 
+                ...notificationSystem.settings, 
+                quietHours: quietHours 
+            };
+            await notificationSystem.updateSettings({ settings: newSettings });
+        }
+
+        function setupEventListeners() {
+            // 測試按鈕事件
+            document.getElementById('testDesktop')?.addEventListener('click', testDesktopNotification);
+            document.getElementById('testSound')?.addEventListener('click', testSoundNotification);
+            document.getElementById('testAll')?.addEventListener('click', testAllChannels);
+            
+            // 操作按鈕事件
+            document.getElementById('saveSettings')?.addEventListener('click', saveSettings);
+            document.getElementById('resetSettings')?.addEventListener('click', resetToDefaults);
+            document.getElementById('clearHistory')?.addEventListener('click', clearNotificationHistory);
+        }
+
+        async function saveSettings() {
+            try {
+                // 設定已經在更改時自動保存，這裡只需要顯示確認
+                notificationSystem.success('設定已保存', '您的通知偏好已成功保存');
+                
+                // 重新載入統計數據
+                await loadStatistics();
+            } catch (error) {
+                console.error('Failed to save settings:', error);
+                notificationSystem.error('保存失敗', '無法保存設定，請稍後再試');
+            }
+        }
+
+        async function resetToDefaults() {
+            if (confirm('確定要重置所有設定為預設值嗎？')) {
+                try {
+                    const defaultSettings = {
+                        channels: {
+                            desktop: true,
+                            sound: true,
+                            vibration: true,
+                            email: false,
+                            line: false
+                        },
+                        settings: {
+                            maxNotifications: 50,
+                            autoExpiry: 30000,
+                            groupSimilar: true,
+                            quietHours: {
+                                enabled: false,
+                                start: '22:00',
+                                end: '08:00'
+                            },
+                            importantOnly: false
+                        }
+                    };
+                    
+                    await notificationSystem.updateSettings(defaultSettings);
+                    updateUIFromSettings(defaultSettings);
+                    
+                    notificationSystem.success('設定已重置', '所有設定已重置為預設值');
+                } catch (error) {
+                    console.error('Failed to reset settings:', error);
+                    notificationSystem.error('重置失敗', '無法重置設定');
+                }
+            }
+        }
+
+        async function testDesktopNotification() {
+            try {
+                await notificationSystem.sendTestNotification('desktop');
+            } catch (error) {
+                console.error('Desktop test failed:', error);
+            }
+        }
+
+        async function testSoundNotification() {
+            try {
+                await notificationSystem.sendTestNotification('sound');
+            } catch (error) {
+                console.error('Sound test failed:', error);
+            }
+        }
+
+        async function testAllChannels() {
+            try {
+                const enabledChannels = Object.keys(notificationSystem.channels)
+                    .filter(channel => notificationSystem.channels[channel]);
+                
+                for (const channel of enabledChannels) {
+                    await notificationSystem.sendTestNotification(channel);
+                    await new Promise(resolve => setTimeout(resolve, 500)); // 延遲 500ms
+                }
+                
+                notificationSystem.success('測試完成', `已測試 ${enabledChannels.length} 個啟用的通知通道`);
+            } catch (error) {
+                console.error('All channels test failed:', error);
+            }
+        }
+
+        async function clearNotificationHistory() {
+            if (confirm('確定要清除所有通知歷史記錄嗎？')) {
+                try {
+                    await fetch('/api/notifications/history', {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                        }
+                    });
+                    
+                    notificationSystem.clearAll();
+                    await loadStatistics();
+                    
+                    notificationSystem.success('歷史已清除', '所有通知歷史記錄已被清除');
+                } catch (error) {
+                    console.error('Failed to clear history:', error);
+                    notificationSystem.error('清除失敗', '無法清除通知歷史記錄');
+                }
+            }
+        }
+
+        function showSettingUpdateNotification(key, value) {
+            const friendlyNames = {
+                'desktopNotifications': '桌面通知',
+                'soundNotifications': '聲音提醒',
+                'vibrationNotifications': '震動提醒',
+                'emailNotifications': '郵件通知',
+                'lineNotifications': 'LINE 通知',
+                'displayDuration': '顯示時間',
+                'maxNotifications': '最大通知數',
+                'quietHours': '安靜時間',
+                'importantOnly': '僅重要通知'
+            };
+            
+            const settingName = friendlyNames[key] || key;
+            const statusText = typeof value === 'boolean' ? (value ? '已啟用' : '已停用') : `已設為 ${value}`;
+            
+            notificationSystem.info('設定已更新', `${settingName} ${statusText}`, {
+                priority: 'low',
+                duration: 2000
+            });
+        }
+
+        // PWA Service Worker 註冊
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/js/service-worker.js')
+                    .then(registration => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch(registrationError => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
