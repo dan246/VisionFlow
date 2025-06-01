@@ -17,13 +17,30 @@ class VisionFlowAdvancedDashboard {
     }
 
     async init() {
-        this.showLoadingScreen();
-        await this.initializeSocket();
-        this.initializeCharts();
-        this.initializeUI();
-        this.setupEventListeners();
-        this.startPeriodicUpdates();
-        this.hideLoadingScreen();
+        try {
+            this.showLoadingScreen();
+            
+            // 並行初始化，不要等待 WebSocket 連接
+            await Promise.allSettled([
+                this.initializeSocket(),
+                this.initializeCharts(),
+                this.initializeUI(),
+                this.setupEventListeners()
+            ]);
+            
+            // 啟動定時更新
+            this.startPeriodicUpdates();
+            
+            // 延遲一點時間確保 UI 渲染完成
+            setTimeout(() => {
+                this.hideLoadingScreen();
+            }, 500);
+            
+        } catch (error) {
+            console.error('Dashboard 初始化失敗:', error);
+            this.hideLoadingScreen();
+            this.showNotification('Dashboard 初始化失敗', 'error');
+        }
     }
 
     showLoadingScreen() {
@@ -48,57 +65,83 @@ class VisionFlowAdvancedDashboard {
     }
 
     async initializeSocket() {
-        try {
-            this.socket = io({
-                transports: ['websocket', 'polling'],
-                upgrade: true,
-                rememberUpgrade: true,
-                reconnection: true,
-                reconnectionAttempts: this.maxRetries,
-                reconnectionDelay: 1000,
-                timeout: 5000
-            });
+        return new Promise((resolve, reject) => {
+            try {
+                // 設置連接超時 - 無論成功或失敗都要 resolve，不要阻塞初始化
+                const connectionTimeout = setTimeout(() => {
+                    console.warn('WebSocket 連接超時，繼續使用離線模式');
+                    resolve(); // 改為 resolve 而不是 reject
+                }, 3000); // 縮短超時時間
 
-            this.socket.on('connect', () => {
-                console.log('✅ VisionFlow 連接成功');
-                this.isConnected = true;
-                this.retryCount = 0;
-                this.showNotification('系統連接成功', 'success');
-                this.socket.emit('join_room', { room: 'dashboard' });
-            });
+                this.socket = io({
+                    transports: ['websocket', 'polling'],
+                    upgrade: true,
+                    rememberUpgrade: true,
+                    reconnection: true,
+                    reconnectionAttempts: this.maxRetries,
+                    reconnectionDelay: 1000,
+                    timeout: 3000, // 縮短超時時間
+                    forceNew: true // 強制建立新連接
+                });
 
-            this.socket.on('disconnect', () => {
-                console.log('❌ VisionFlow 連接斷開');
-                this.isConnected = false;
-                this.showNotification('連接已斷開，正在重新連接...', 'warning');
-            });
+                this.socket.on('connect', () => {
+                    console.log('✅ VisionFlow 連接成功');
+                    this.isConnected = true;
+                    this.retryCount = 0;
+                    clearTimeout(connectionTimeout);
+                    this.showNotification('系統連接成功', 'success');
+                    this.socket.emit('join_room', { room: 'dashboard' });
+                    this.updateConnectionStatus(true);
+                    resolve();
+                });
 
-            this.socket.on('reconnect', () => {
-                console.log('🔄 VisionFlow 重新連接成功');
-                this.showNotification('重新連接成功', 'success');
-            });
+                this.socket.on('connect_error', (error) => {
+                    console.warn('WebSocket 連接錯誤:', error);
+                    clearTimeout(connectionTimeout);
+                    this.updateConnectionStatus(false);
+                    resolve(); // 改為 resolve，繼續初始化
+                });
 
-            // 實時數據監聽
-            this.socket.on('detection_update', (data) => {
-                this.handleDetectionUpdate(data);
-            });
+                this.socket.on('disconnect', (reason) => {
+                    console.log('❌ VisionFlow 連接斷開:', reason);
+                    this.isConnected = false;
+                    this.updateConnectionStatus(false);
+                    this.showNotification('連接已斷開，正在重新連接...', 'warning');
+                });
 
-            this.socket.on('alert_update', (data) => {
-                this.handleAlertUpdate(data);
-            });
+                this.socket.on('reconnect', () => {
+                    console.log('🔄 VisionFlow 重新連接成功');
+                    this.isConnected = true;
+                    this.updateConnectionStatus(true);
+                    this.showNotification('重新連接成功', 'success');
+                });
 
-            this.socket.on('system_status', (data) => {
-                this.handleSystemStatusUpdate(data);
-            });
+                // 實時數據監聽
+                this.socket.on('dashboard_update', (data) => {
+                    this.handleDashboardUpdate(data);
+                });
 
-            this.socket.on('camera_status', (data) => {
-                this.handleCameraStatusUpdate(data);
-            });
+                this.socket.on('detection_update', (data) => {
+                    this.handleDetectionUpdate(data);
+                });
 
-        } catch (error) {
-            console.error('Socket 初始化失败:', error);
-            this.showNotification('連接初始化失敗', 'error');
-        }
+                this.socket.on('alert_update', (data) => {
+                    this.handleAlertUpdate(data);
+                });
+
+                this.socket.on('system_status', (data) => {
+                    this.handleSystemStatusUpdate(data);
+                });
+
+                this.socket.on('camera_status', (data) => {
+                    this.handleCameraStatusUpdate(data);
+                });
+
+            } catch (error) {
+                console.error('Socket 初始化失败:', error);
+                resolve(); // 即使失敗也 resolve，繼續初始化
+            }
+        });
     }
 
     initializeCharts() {
@@ -498,78 +541,45 @@ class VisionFlowAdvancedDashboard {
         this.updateCameraGrid(data);
     }
 
-    showNotification(message, type = 'info') {
-        const container = document.getElementById('notification-container');
-        if (!container) return;
-
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <div class="notification-content">
-                <span class="notification-message">${message}</span>
-                <button class="notification-close">&times;</button>
-            </div>
-        `;
-
-        container.appendChild(notification);
-
-        // 添加關閉事件
-        const closeBtn = notification.querySelector('.notification-close');
-        closeBtn.addEventListener('click', () => {
-            this.removeNotification(notification);
-        });
-
-        // 自動移除
-        setTimeout(() => {
-            this.removeNotification(notification);
-        }, 5000);
-
-        // 添加動畫
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 10);
-    }
-
-    removeNotification(notification) {
-        notification.classList.add('hide');
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
+    updateConnectionStatus(isConnected) {
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        if (statusDot && statusText) {
+            if (isConnected) {
+                statusDot.className = 'status-dot online';
+                statusText.textContent = '已連接';
+            } else {
+                statusDot.className = 'status-dot offline';
+                statusText.textContent = '離線模式';
             }
-        }, 300);
-    }
-
-    async loadCameraData() {
-        try {
-            const response = await fetch('/api/cameras/status');
-            const data = await response.json();
-            this.updateCameraGrid(data.cameras);
-        } catch (error) {
-            console.error('載入攝影機數據失敗:', error);
-            this.showNotification('攝影機數據載入失敗', 'error');
         }
     }
 
-    updateCameraGrid(cameras) {
-        const grid = document.getElementById('camera-grid');
-        if (!grid || !cameras) return;
+    handleDashboardUpdate(data) {
+        // 處理儀表板數據更新
+        if (data.type === 'stats') {
+            this.updateDashboardStats(data.data);
+        } else if (data.type === 'charts') {
+            this.updateChartData(data.data);
+        }
+    }
 
-        grid.innerHTML = cameras.map(camera => `
-            <div class="camera-card ${camera.status}" data-camera-id="${camera.id}">
-                <div class="camera-header">
-                    <h6>${camera.name}</h6>
-                    <span class="status-indicator ${camera.status}"></span>
-                </div>
-                <div class="camera-preview">
-                    <img src="${camera.stream_url}" alt="${camera.name}" 
-                         onerror="this.src='/static/images/camera-placeholder.png'">
-                </div>
-                <div class="camera-info">
-                    <small>位置: ${camera.location}</small>
-                    <small>今日檢測: ${camera.detection_count_today}</small>
-                </div>
-            </div>
-        `).join('');
+    updateChartData(data) {
+        // 更新圖表數據
+        if (data.detection_trend && this.charts.detectionTrend) {
+            const chart = this.charts.detectionTrend;
+            chart.data.labels = data.detection_trend.labels;
+            chart.data.datasets[0].data = data.detection_trend.detections;
+            chart.data.datasets[1].data = data.detection_trend.alerts;
+            chart.update('none');
+        }
+
+        if (data.detection_types && this.charts.detectionType) {
+            const chart = this.charts.detectionType;
+            chart.data.datasets[0].data = data.detection_types.values;
+            chart.update('none');
+        }
     }
 
     destroy() {
@@ -588,6 +598,123 @@ class VisionFlowAdvancedDashboard {
             }
         });
     }
+
+    initNotificationSettings() {
+        // 初始化通知設定
+        const notificationToggles = document.querySelectorAll('.notification-toggle');
+        notificationToggles.forEach(toggle => {
+            toggle.addEventListener('change', (e) => {
+                const setting = e.target.dataset.setting;
+                const enabled = e.target.checked;
+                this.updateNotificationSetting(setting, enabled);
+            });
+        });
+    }
+
+    initSystemSettings() {
+        // 初始化系統設定
+        const systemSettings = document.querySelectorAll('.system-setting');
+        systemSettings.forEach(setting => {
+            setting.addEventListener('change', (e) => {
+                const settingName = e.target.dataset.setting;
+                const value = e.target.value || e.target.checked;
+                this.updateSystemSetting(settingName, value);
+            });
+        });
+    }
+
+    updateNotificationSetting(setting, enabled) {
+        // 更新通知設定
+        console.log(`更新通知設定: ${setting} = ${enabled}`);
+        // 這裡可以發送 API 請求到後端
+    }
+
+    updateSystemSetting(setting, value) {
+        // 更新系統設定
+        console.log(`更新系統設定: ${setting} = ${value}`);
+        // 這裡可以發送 API 請求到後端
+    }
+
+    updateAlertsDisplay(alerts) {
+        // 更新警報顯示
+        const alertsList = document.getElementById('alerts-list');
+        if (alertsList && alerts) {
+            alertsList.innerHTML = alerts.map(alert => `
+                <div class="alert-item ${alert.severity}">
+                    <div class="alert-content">
+                        <h6>${alert.title}</h6>
+                        <p>${alert.description}</p>
+                        <small>${new Date(alert.timestamp).toLocaleString()}</small>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    updateCamerasDisplay(cameras) {
+        // 更新攝影機顯示
+        this.updateCameraGrid(cameras);
+        this.updateCameraStatusChart(cameras);
+    }
+
+    updateSystemPerformance(performance) {
+        // 更新系統效能顯示
+        if (this.charts.systemPerformance && performance) {
+            const chart = this.charts.systemPerformance;
+            chart.data.datasets[0].data = [
+                performance.cpu || 0,
+                performance.memory || 0,
+                performance.disk || 0,
+                performance.network || 0,
+                performance.queue || 0,
+                performance.fps || 0
+            ];
+            chart.update('none');
+        }
+    }
+
+    updateAlertsCount() {
+        // 更新警報計數
+        const alertsBadge = document.querySelector('.alerts-count');
+        if (alertsBadge) {
+            const currentCount = parseInt(alertsBadge.textContent) || 0;
+            alertsBadge.textContent = currentCount + 1;
+        }
+    }
+
+    updateDetectionTrendChart(data) {
+        // 更新檢測趨勢圖表
+        if (this.charts.detectionTrend && data) {
+            const chart = this.charts.detectionTrend;
+            const now = new Date().toLocaleTimeString();
+            
+            // 添加新數據點
+            chart.data.labels.push(now);
+            chart.data.datasets[0].data.push(data.detections || 0);
+            chart.data.datasets[1].data.push(data.alerts || 0);
+            
+            // 保持最多50個數據點
+            if (chart.data.labels.length > 50) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+            }
+            
+            chart.update('none');
+        }
+    }
+
+    updateCameraStatusChart(cameras) {
+        // 更新攝影機狀態圖表
+        if (this.charts.cameraStatus && cameras) {
+            const chart = this.charts.cameraStatus;
+            chart.data.labels = cameras.map(c => c.name);
+            chart.data.datasets[0].data = cameras.map(c => c.detection_count_today || 0);
+            chart.update('none');
+        }
+    }
+
+    // ...existing code...
 }
 
 // 初始化儀表板
