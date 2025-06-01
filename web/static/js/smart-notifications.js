@@ -653,6 +653,71 @@ class SmartNotificationSystem {
     }
 
     /**
+     * 便捷方法：顯示成功通知
+     * @param {string} title - 通知標題
+     * @param {string} message - 通知訊息
+     * @param {Object} options - 額外選項
+     */
+    success(title, message, options = {}) {
+        return this.show({
+            title,
+            message,
+            type: 'success',
+            priority: 'medium',
+            ...options
+        });
+    }
+
+    /**
+     * 便捷方法：顯示錯誤通知
+     * @param {string} title - 通知標題
+     * @param {string} message - 通知訊息
+     * @param {Object} options - 額外選項
+     */
+    error(title, message, options = {}) {
+        return this.show({
+            title,
+            message,
+            type: 'error',
+            priority: 'high',
+            persistent: true,
+            ...options
+        });
+    }
+
+    /**
+     * 便捷方法：顯示資訊通知
+     * @param {string} title - 通知標題
+     * @param {string} message - 通知訊息
+     * @param {Object} options - 額外選項
+     */
+    info(title, message, options = {}) {
+        return this.show({
+            title,
+            message,
+            type: 'info',
+            priority: 'medium',
+            ...options
+        });
+    }
+
+    /**
+     * 便捷方法：顯示警告通知
+     * @param {string} title - 通知標題
+     * @param {string} message - 通知訊息
+     * @param {Object} options - 額外選項
+     */
+    warning(title, message, options = {}) {
+        return this.show({
+            title,
+            message,
+            type: 'warning',
+            priority: 'high',
+            ...options
+        });
+    }
+
+    /**
      * 獲取通知歷史記錄
      * @param {Object} options - 查詢選項
      */
@@ -724,14 +789,21 @@ class SmartNotificationSystem {
             });
 
             if (response.ok) {
-                return await response.json();
+                const result = await response.json();
+                if (result.success && result.data) {
+                    console.log('✅ Statistics loaded from API:', result.data);
+                    return result.data;
+                } else {
+                    throw new Error('Invalid API response structure');
+                }
             } else {
-                throw new Error('Failed to fetch statistics');
+                throw new Error(`API request failed with status: ${response.status}`);
             }
         } catch (error) {
             console.error('Error fetching notification statistics:', error);
             
             // 回退到本地統計
+            console.log('📋 Falling back to local statistics');
             return this.getLocalStatistics();
         }
     }

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通知系統測試</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #e8f4fd;
+            border-left: 4px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔔 通知系統測試頁面</h1>
+        
+        <div class="status" id="status">
+            正在載入通知系統...
+        </div>
+        
+        <div id="controls" style="display: none;">
+            <h3>功能測試</h3>
+            <button class="btn" onclick="testBasicNotification()">測試基本通知</button>
+            <button class="btn" onclick="testSuccessNotification()">測試成功通知</button>
+            <button class="btn" onclick="testErrorNotification()">測試錯誤通知</button>
+            <button class="btn" onclick="testInfoNotification()">測試資訊通知</button>
+            <button class="btn" onclick="testWarningNotification()">測試警告通知</button>
+            <button class="btn" onclick="testAPICall()">測試 API 調用</button>
+            <button class="btn" onclick="testStatistics()">測試統計資料</button>
+            
+            <h3>系統狀態</h3>
+            <div id="systemInfo"></div>
+        </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- 載入通知系統 -->
+    <script src="/static/js/smart-notifications.js"></script>
+    
+    <script>
+        let notificationSystem;
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                await waitForNotificationSystem();
+                document.getElementById('status').innerHTML = '✅ 通知系統已就緒！';
+                document.getElementById('controls').style.display = 'block';
+                updateSystemInfo();
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ 通知系統載入失敗: ' + error.message;
+                console.error('載入失敗:', error);
+            }
+        });
+
+        async function waitForNotificationSystem() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+                
+                const checkSystem = () => {
+                    attempts++;
+                    console.log(`檢查通知系統 (嘗試 ${attempts}/${maxAttempts})`);
+                    
+                    if (window.smartNotifications) {
+                        notificationSystem = window.smartNotifications;
+                        console.log('使用現有實例');
+                        resolve();
+                    } else if (window.SmartNotificationSystem) {
+                        try {
+                            notificationSystem = new SmartNotificationSystem();
+                            console.log('創建新實例');
+                            setTimeout(resolve, 2000);
+                        } catch (error) {
+                            console.error('創建實例失敗:', error);
+                            if (attempts < maxAttempts) {
+                                setTimeout(checkSystem, 100);
+                            } else {
+                                reject(new Error('無法創建實例'));
+                            }
+                        }
+                    } else if (attempts < maxAttempts) {
+                        setTimeout(checkSystem, 100);
+                    } else {
+                        reject(new Error('無法載入通知系統'));
+                    }
+                };
+                checkSystem();
+            });
+        }
+
+        function testBasicNotification() {
+            try {
+                notificationSystem.show({
+                    title: '基本通知測試',
+                    message: '這是一個基本的通知測試',
+                    type: 'info'
+                });
+                updateStatus('✅ 基本通知已發送');
+            } catch (error) {
+                updateStatus('❌ 基本通知失敗: ' + error.message);
+            }
+        }
+
+        function testSuccessNotification() {
+            try {
+                notificationSystem.success('成功通知', '這是一個成功通知的測試');
+                updateStatus('✅ 成功通知已發送');
+            } catch (error) {
+                updateStatus('❌ 成功通知失敗: ' + error.message);
+            }
+        }
+
+        function testErrorNotification() {
+            try {
+                notificationSystem.error('錯誤通知', '這是一個錯誤通知的測試');
+                updateStatus('✅ 錯誤通知已發送');
+            } catch (error) {
+                updateStatus('❌ 錯誤通知失敗: ' + error.message);
+            }
+        }
+
+        function testInfoNotification() {
+            try {
+                notificationSystem.info('資訊通知', '這是一個資訊通知的測試');
+                updateStatus('✅ 資訊通知已發送');
+            } catch (error) {
+                updateStatus('❌ 資訊通知失敗: ' + error.message);
+            }
+        }
+
+        function testWarningNotification() {
+            try {
+                notificationSystem.warning('警告通知', '這是一個警告通知的測試');
+                updateStatus('✅ 警告通知已發送');
+            } catch (error) {
+                updateStatus('❌ 警告通知失敗: ' + error.message);
+            }
+        }
+
+        async function testAPICall() {
+            try {
+                const response = await fetch('/api/notifications/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        channel: 'desktop',
+                        title: 'API 測試',
+                        message: '這是透過 API 發送的測試通知'
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    updateStatus('✅ API 測試成功: ' + result.data.message);
+                } else {
+                    updateStatus('❌ API 測試失敗');
+                }
+            } catch (error) {
+                updateStatus('❌ API 調用失敗: ' + error.message);
+            }
+        }
+
+        async function testStatistics() {
+            try {
+                const stats = await notificationSystem.getStatistics();
+                updateStatus('✅ 統計資料載入成功: ' + JSON.stringify(stats).substring(0, 100) + '...');
+            } catch (error) {
+                updateStatus('❌ 統計資料載入失敗: ' + error.message);
+            }
+        }
+
+        function updateStatus(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            document.getElementById('status').innerHTML = `[${timestamp}] ${message}`;
+        }
+
+        function updateSystemInfo() {
+            const info = {
+                '通知系統實例': notificationSystem ? '✅ 已載入' : '❌ 未載入',
+                '支援的方法': notificationSystem ? Object.getOwnPropertyNames(Object.getPrototypeOf(notificationSystem)).join(', ') : '無',
+                '當前設定': notificationSystem ? JSON.stringify(notificationSystem.settings || {}).substring(0, 100) + '...' : '無',
+                '當前通道': notificationSystem ? JSON.stringify(notificationSystem.channels || {}) : '無'
+            };
+            
+            document.getElementById('systemInfo').innerHTML = Object.entries(info)
+                .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+                .join('<br>');
+        }
+    </script>
+</body>
+</html>

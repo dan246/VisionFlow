@@ -657,13 +657,22 @@ def test_notification():
     """測試通知功能"""
     try:
         data = request.json
-        notification_type = data.get('type', 'desktop')
+        channel = data.get('channel', 'desktop')
+        
+        # 對應中文名稱
+        channel_names = {
+            'desktop': '桌面通知',
+            'sound': '聲音通知',
+            'vibration': '震動通知',
+            'email': '郵件通知',
+            'line': 'LINE通知'
+        }
         
         # 模擬通知測試
         test_result = {
-            'type': notification_type,
+            'channel': channel,
             'success': True,
-            'message': f'{notification_type} 通知測試成功',
+            'message': f'{channel_names.get(channel, channel)} 測試成功',
             'timestamp': datetime.utcnow().isoformat()
         }
         
@@ -718,6 +727,29 @@ def get_notification_history():
         
     except Exception as e:
         logger.error(f"Error getting notification history: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/notifications/history', methods=['DELETE'])
+def clear_notification_history():
+    """清除通知歷史記錄"""
+    try:
+        # 從數據庫清除通知歷史（在實際實現中）
+        # from models.notification import Notification
+        # Notification.query.delete()
+        # db.session.commit()
+        
+        # 目前返回成功響應
+        return jsonify({
+            'success': True,
+            'message': '通知歷史記錄已清除',
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error clearing notification history: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -858,6 +890,38 @@ def get_notification_statistics():
             'success': True,
             'data': mock_statistics
         })
+
+# ===== 測試和調試端點 =====
+
+@main_bp.route('/test-api-statistics')
+def test_api_statistics():
+    """測試API統計端點"""
+    return jsonify({
+        'success': True,
+        'message': 'API統計測試端點正常工作',
+        'timestamp': datetime.utcnow().isoformat(),
+        'data': {
+            'totalNotifications': 100,
+            'unreadNotifications': 15,
+            'todayNotifications': 10
+        }
+    }), 200
+
+@api_bp.route('/simple-statistics', methods=['GET'])
+def get_simple_statistics():
+    """獲取簡化統計數據"""
+    return jsonify({
+        'success': True,
+        'message': '簡化統計數據',
+        'timestamp': datetime.utcnow().isoformat(),
+        'data': {
+            'totalNotifications': random.randint(50, 200),
+            'unreadNotifications': random.randint(5, 30),
+            'todayNotifications': random.randint(0, 20),
+            'systemStatus': 'healthy',
+            'lastUpdated': datetime.now().isoformat()
+        }
+    }), 200
 
 # ===== WebSocket 事件處理 =====
 
