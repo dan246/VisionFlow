@@ -173,11 +173,40 @@ def refresh_token():
     except Exception as e:
         current_app.logger.error(f"Token refresh error: {str(e)}")
         return jsonify({'message': 'Token refresh failed'}), 500
+
+@auth_bp.route('/verify', methods=['GET'])
+def verify_token():
+    """驗證 token 有效性"""
+    token = request.headers.get('Authorization')
+    
+    if not token:
+        return jsonify({'message': 'Token is missing'}), 401
+    
+    try:
+        # 從 Authorization 標頭中提取 Bearer token
+        if token.startswith('Bearer '):
+            token = token.split(" ")[1]
+        
+        data = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
         user = User.query.filter_by(account_uuid=data['account_uuid']).first()
-        if user:
-            access_token = generate_access_token(user)
-            return jsonify({'access_token': access_token}), 200
+        
+        if not user:
+            return jsonify({'message': 'User not found'}), 401
+        
+        return jsonify({
+            'message': 'Token is valid',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'account_uuid': user.account_uuid
+            }
+        }), 200
+        
     except jwt.ExpiredSignatureError:
-        return jsonify({'message': 'Refresh token has expired'}), 401
+        return jsonify({'message': 'Token has expired'}), 401
     except jwt.InvalidTokenError:
-        return jsonify({'message': 'Invalid token'}), 401
+        return jsonify({'message': 'Token is invalid'}), 401
+    except Exception as e:
+        current_app.logger.error(f"Token verification error: {str(e)}")
+        return jsonify({'message': 'Token verification failed'}), 500

@@ -861,37 +861,24 @@ class SmartNotificationSystem {
      * WebSocket 連接管理
      */
     setupWebSocketConnection() {
-        if (this.websocket) {
-            this.websocket.close();
-        }
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/notifications`;
-
-        this.websocket = new WebSocket(wsUrl);
-
-        this.websocket.onopen = () => {
-            console.log('🔗 WebSocket connection established for notifications');
-            this.dispatchEvent('notification:websocket_connected');
-        };
-
-        this.websocket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
+        // 使用現有的 SocketIO 連接而不是創建新的 WebSocket
+        if (window.io && window.socket) {
+            console.log('🔗 Using existing SocketIO connection for notifications');
+            
+            // 監聽通知相關事件
+            window.socket.on('notification', (data) => {
                 this.handleWebSocketMessage(data);
-            } catch (error) {
-                console.error('Failed to parse WebSocket message:', error);
-            }
-        };
-
-        this.websocket.onclose = () => {
-            console.log('🔌 WebSocket connection closed, attempting to reconnect...');
-            setTimeout(() => this.setupWebSocketConnection(), 5000);
-        };
-
-        this.websocket.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
+            });
+            
+            // 加入通知房間
+            window.socket.emit('join_room', { room: 'notifications' });
+            
+            this.dispatchEvent('notification:websocket_connected');
+            return;
+        }
+        
+        // 如果沒有現有的 SocketIO 連接，暫時禁用 WebSocket 功能
+        console.warn('SocketIO not available, WebSocket notifications disabled');
     }
 
     /**

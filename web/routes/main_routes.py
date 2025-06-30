@@ -12,6 +12,9 @@ import time
 from datetime import datetime, timedelta
 import logging
 
+# 導入認證裝飾器
+from routes.auth_routes import token_required
+
 # 創建藍圖
 api_bp = Blueprint('api_bp', __name__, url_prefix='/api')
 main_bp = Blueprint('main_bp', __name__)
@@ -22,8 +25,19 @@ logger = logging.getLogger(__name__)
 
 @main_bp.route('/')
 def index():
-    """主頁面"""
-    return render_template('index.html')
+    """主頁面 - 重定向到 advanced-dashboard"""
+    from flask import redirect, url_for
+    return redirect(url_for('main_bp.advanced_dashboard'))
+
+@main_bp.route('/ws/notifications')
+def websocket_notifications():
+    """處理 WebSocket 通知請求（重定向到 SocketIO）"""
+    from flask import jsonify
+    return jsonify({
+        'message': 'WebSocket notifications have been moved to SocketIO',
+        'socketio_endpoint': '/socket.io/',
+        'instructions': 'Please use SocketIO client instead of raw WebSocket'
+    }), 200
 
 @main_bp.route('/advanced-dashboard')
 def advanced_dashboard():
@@ -60,7 +74,8 @@ def service_worker():
 # ===== API 路由 =====
 
 @api_bp.route('/dashboard/stats', methods=['GET'])
-def get_dashboard_stats():
+@token_required
+def get_dashboard_stats(current_user):
     """獲取儀表板統計數據"""
     try:
         # 模擬即時數據，實際應用中應該從資料庫或 Redis 獲取
@@ -110,7 +125,8 @@ def get_dashboard_stats():
         }), 500
 
 @api_bp.route('/cameras', methods=['GET'])
-def get_cameras():
+@token_required
+def get_cameras(current_user):
     """獲取攝影機列表"""
     try:
         # 模擬攝影機數據
@@ -185,7 +201,8 @@ def get_recent_detections():
         }), 500
 
 @api_bp.route('/alerts/active', methods=['GET'])
-def get_active_alerts():
+@token_required
+def get_active_alerts(current_user):
     """獲取活動警報"""
     try:
         alerts = []
@@ -276,7 +293,8 @@ def get_analytics_trends():
         }), 500
 
 @api_bp.route('/system/status', methods=['GET'])
-def get_system_status():
+@token_required
+def get_system_status(current_user):
     """獲取系統狀態"""
     try:
         import psutil
@@ -994,3 +1012,112 @@ def get_mock_camera_data():
             'fps': random.randint(25, 30)
         })
     return cameras
+
+@api_bp.route('/notifications', methods=['POST'])
+def receive_notification():
+    """接收來自 object_recognition 服務的通知"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # 記錄收到的通知
+        logger.info(f"Received notification: {data}")
+        
+        # 提取通知數據
+        camera_id = data.get('camera_id')
+        message = data.get('message', '未知事件')
+        image_path = data.get('image_path')
+        timestamp = datetime.utcnow()
+        
+        # 這裡可以將通知儲存到資料庫
+        # 或者轉發到其他通知系統（email, line, etc.）
+        
+        # 創建通知記錄（如果需要儲存到資料庫的話）
+        # notification = Notification(
+        #     camera_id=camera_id,
+        #     message=message,
+        #     image_path=image_path,
+        #     timestamp=timestamp
+        # )
+        # db.session.add(notification)
+        # db.session.commit()
+        
+        logger.info(f"Processed notification for camera {camera_id}: {message}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Notification received successfully',
+            'timestamp': timestamp.isoformat()
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error processing notification: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error processing notification: {str(e)}'
+        }), 500
+
+@api_bp.route('/notifications/line_ids', methods=['GET'])
+def get_line_ids():
+    """獲取 LINE 通知 ID 列表"""
+    try:
+        # 這裡應該從資料庫獲取 LINE token 列表
+        from models.line_token import LineToken
+        
+        line_tokens = LineToken.query.all()
+        line_ids = []
+        
+        for token in line_tokens:
+            line_ids.append({
+                'id': token.id,
+                'token': token.token,
+                'description': f'LINE Token {token.id}'
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': line_ids
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting LINE IDs: {str(e)}")
+        return jsonify({
+            'success': False,
+            'data': [],
+            'message': f'Error getting LINE IDs: {str(e)}'
+        }), 500
+
+@api_bp.route('/notifications/email_list', methods=['GET'])
+def get_email_list():
+    """獲取郵件通知列表"""
+    try:
+        # 這裡應該從資料庫獲取郵件地址列表
+        from models.email_recipient import EmailRecipient
+        
+        email_recipients = EmailRecipient.query.all()
+        email_list = []
+        
+        for recipient in email_recipients:
+            email_list.append({
+                'id': recipient.id,
+                'email': recipient.email,
+                'name': recipient.email
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': email_list
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting email list: {str(e)}")
+        return jsonify({
+            'success': False,
+            'data': [],
+            'message': f'Error getting email list: {str(e)}'
+        }), 500

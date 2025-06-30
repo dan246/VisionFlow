@@ -59,13 +59,16 @@
                 <!-- 使用者選單 -->
                 <div class="dropdown">
                     <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown">
-                        <i class="fas fa-user me-1"></i>管理員
+                        <i class="fas fa-user me-1"></i><span id="username-display">未登入</span>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-user-cog me-2"></i>個人設定</a></li>
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>系統設定</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-sign-out-alt me-2"></i>登出</a></li>
+                        <li><a class="dropdown-item" href="#" id="login-menu-item"><i class="fas fa-sign-in-alt me-2"></i>登入</a></li>
+                        <li><a class="dropdown-item" href="#" id="register-menu-item"><i class="fas fa-user-plus me-2"></i>註冊</a></li>
+                        <li><hr class="dropdown-divider" id="divider-auth" style="display:none;"></li>
+                        <li><a class="dropdown-item" href="#" id="profile-menu-item" style="display:none;"><i class="fas fa-user-cog me-2"></i>個人設定</a></li>
+                        <li><a class="dropdown-item" href="#" id="settings-menu-item" style="display:none;"><i class="fas fa-cog me-2"></i>系統設定</a></li>
+                        <li><hr class="dropdown-divider" id="divider-logout" style="display:none;"></li>
+                        <li><a class="dropdown-item" href="#" id="logout-menu-item" style="display:none;"><i class="fas fa-sign-out-alt me-2"></i>登出</a></li>
                     </ul>
                 </div>
             </div>
@@ -452,16 +455,168 @@
         </div>
     </div>
 
+    <!-- 登入模態框 -->
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="loginModalLabel">
+                        <i class="fas fa-sign-in-alt me-2"></i>登入 VisionFlow
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="loginUsername" class="form-label">使用者名稱</label>
+                            <input type="text" class="form-control" id="loginUsername" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="loginPassword" class="form-label">密碼</label>
+                            <input type="password" class="form-control" id="loginPassword" required>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="rememberMe">
+                            <label class="form-check-label" for="rememberMe">記住我</label>
+                        </div>
+                    </form>
+                    <div id="loginError" class="alert alert-danger" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="loginSubmit">
+                        <i class="fas fa-sign-in-alt me-1"></i>登入
+                    </button>
+                    <button type="button" class="btn btn-link" id="showRegisterModal">還沒有帳號？立即註冊</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 註冊模態框 -->
+    <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="registerModalLabel">
+                        <i class="fas fa-user-plus me-2"></i>註冊 VisionFlow
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="registerForm">
+                        <div class="mb-3">
+                            <label for="registerUsername" class="form-label">使用者名稱</label>
+                            <input type="text" class="form-control" id="registerUsername" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="registerEmail" class="form-label">電子郵件</label>
+                            <input type="email" class="form-control" id="registerEmail" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="registerPassword" class="form-label">密碼</label>
+                            <input type="password" class="form-control" id="registerPassword" required minlength="6">
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">確認密碼</label>
+                            <input type="password" class="form-control" id="confirmPassword" required minlength="6">
+                        </div>
+                    </form>
+                    <div id="registerError" class="alert alert-danger" style="display:none;"></div>
+                    <div id="registerSuccess" class="alert alert-success" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="registerSubmit">
+                        <i class="fas fa-user-plus me-1"></i>註冊
+                    </button>
+                    <button type="button" class="btn btn-link" id="showLoginModal">已有帳號？立即登入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Smart Notifications System -->
+    <script src="/static/js/smart-notifications.js"></script>
+    
+    <!-- Advanced Dashboard -->
     <script src="/static/js/advanced-dashboard.js"></script>
+
+    <!-- Tab 切換初始化 -->
+    <script>
+        // 確保 DOM 完全載入後再初始化 tab 切換
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing tab switching...');
+            
+            // 立即初始化 tab 切換功能
+            initializeTabSwitching();
+            
+            function initializeTabSwitching() {
+                const tabButtons = document.querySelectorAll('.tab-btn');
+                const tabPanes = document.querySelectorAll('.tab-pane');
+                
+                console.log('Found', tabButtons.length, 'tab buttons and', tabPanes.length, 'tab panes');
+                
+                // 為每個 tab 按鈕添加點擊事件監聽器
+                tabButtons.forEach((button, index) => {
+                    console.log('Setting up tab button', index, 'for tab:', button.dataset.tab);
+                    
+                    button.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const targetTab = this.dataset.tab;
+                        console.log('Tab clicked:', targetTab);
+                        
+                        // 移除所有活動狀態
+                        tabButtons.forEach(btn => btn.classList.remove('active'));
+                        tabPanes.forEach(pane => pane.classList.remove('active'));
+                        
+                        // 添加當前標籤的活動狀態
+                        this.classList.add('active');
+                        const targetPane = document.getElementById(targetTab);
+                        if (targetPane) {
+                            targetPane.classList.add('active');
+                            console.log('Switched to tab:', targetTab);
+                        } else {
+                            console.error('Target pane not found:', targetTab);
+                        }
+                        
+                        // 如果切換到圖表標籤，重新調整圖表大小
+                        if (targetTab === 'dashboard' && window.visionFlowDashboard) {
+                            setTimeout(() => {
+                                if (window.visionFlowDashboard.charts) {
+                                    Object.values(window.visionFlowDashboard.charts).forEach(chart => {
+                                        if (chart && chart.resize) {
+                                            chart.resize();
+                                        }
+                                    });
+                                }
+                            }, 100);
+                        }
+                    });
+                });
+                
+                // 確保初始狀態正確
+                const activeButton = document.querySelector('.tab-btn.active');
+                if (activeButton) {
+                    const activeTab = activeButton.dataset.tab;
+                    const activePane = document.getElementById(activeTab);
+                    if (activePane) {
+                        activePane.classList.add('active');
+                    }
+                }
+            }
+        });
+    </script>
 
     <!-- PWA 註冊 -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/static/sw.js')
+                navigator.serviceWorker.register('/static/js/service-worker.js')
                     .then((registration) => {
                         console.log('SW registered: ', registration);
                     })

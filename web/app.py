@@ -90,8 +90,9 @@ def create_app(config_name=None):
     # ---------------- 定義主要路由 ----------------
     @app.route('/')
     def index():
-        """首頁"""
-        return render_template('index.html')
+        """首頁 - 重定向到 advanced-dashboard"""
+        from flask import redirect, url_for
+        return redirect(url_for('main_bp.advanced_dashboard'))
     
     @app.route('/snapshot_ui/<camera_id>')
     def snapshot_ui(camera_id):
@@ -100,8 +101,9 @@ def create_app(config_name=None):
     
     @app.route('/register')
     def register():
-        """註冊頁面"""
-        return render_template('register.html')
+        """註冊頁面 - 重定向到 advanced-dashboard"""
+        from flask import redirect, url_for
+        return redirect(url_for('main_bp.advanced_dashboard'))
     
     @app.route('/draw_area')
     def draw_area():
@@ -112,7 +114,8 @@ def create_app(config_name=None):
     @app.errorhandler(404)
     def not_found_error(error):
         """404 錯誤處理"""
-        app.logger.warning(f"404 error: {error}")
+        from flask import request
+        app.logger.warning(f"404 error for URL: {request.url} - Method: {request.method} - {error}")
         return render_template('errors/404.html'), 404
     
     @app.errorhandler(500)
