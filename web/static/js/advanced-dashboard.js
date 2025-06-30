@@ -1341,7 +1341,9 @@ class VisionFlowAdvancedDashboard {
                 if (statusResponse.ok) {
                     const statusResult = await statusResponse.json();
                     if (statusResult.success && statusResult.data) {
-                        const cameraStatus = statusResult.data.find(cam => cam.camera_id === cameraId.toString());
+                        // 修正：data 是物件不是陣列
+                        const cameraStatus = statusResult.data[cameraId.toString()];
+                        
                         if (cameraStatus) {
                             camera = {
                                 name: `攝影機 ${cameraId}`,
@@ -1667,7 +1669,8 @@ class VisionFlowAdvancedDashboard {
                 if (statusResponse.ok) {
                     const statusResult = await statusResponse.json();
                     if (statusResult.success && statusResult.data) {
-                        const cameraStatus = statusResult.data.find(cam => cam.camera_id === cameraId.toString());
+                        // 修正：data 是物件不是陣列
+                        const cameraStatus = statusResult.data[cameraId.toString()];
                         
                         if (cameraStatus) {
                             // 更新 FPS 指示器

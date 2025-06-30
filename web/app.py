@@ -42,7 +42,9 @@ def create_app(config_name=None):
                 file_output=True
             )
             # 把 logger 綁到 flask app
-            app.logger = logger
+            for handler in logger.handlers:
+                app.logger.addHandler(handler)
+            app.logger.setLevel(logger.level)
             app.logger.info("Using shared logging configuration")
         except Exception as e:
             app.logger.warning(f"Failed to setup shared logging: {e}, using Flask default logging")
