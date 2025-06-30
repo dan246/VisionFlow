@@ -2,7 +2,8 @@
  * VisionFlow Real-time Monitoring Dashboard
  * Advanced WebSocket-based dashboard with modern UI/UX
  */
-
+const API_URL        = "http://localhost:5001";    // 後端主機＋埠號
+const STREAM_API_URL = "http://localhost:15440";   // 串流服務埠號
 class VisionFlowAdvancedDashboard {
     constructor() {
         this.socket = null;
@@ -13,6 +14,11 @@ class VisionFlowAdvancedDashboard {
         this.updateInterval = null;
         this.notifications = [];
         
+        // 認證相關
+        this.token = localStorage.getItem('accessToken') || null;
+        this.isLoggedIn = false;
+        this.currentUser = null;
+        
         this.init();
     }
 
@@ -22,6 +28,13 @@ class VisionFlowAdvancedDashboard {
             
             // 載入保存的設定
             this.loadSettings();
+            
+            // 檢查認證狀態
+            if (this.token) {
+                console.log('Token 存在，設置為已登入狀態 (暫時)');
+                this.isLoggedIn = true; // 暫時直接設為 true
+                // await this.checkAuthStatus(); // 暫時註解掉，避免 API 調用失敗影響
+            }
             
             // 並行初始化，不要等待 WebSocket 連接
             await Promise.allSettled([
@@ -62,9 +75,9 @@ class VisionFlowAdvancedDashboard {
 
     getAuthHeaders() {
         // 獲取認證 headers
-        if (window.authManager && window.authManager.token) {
+        if (this.token) {
             return {
-                'Authorization': `Bearer ${window.authManager.token}`,
+                'Authorization': `Bearer ${this.token}`,
                 'Content-Type': 'application/json'
             };
         }
@@ -704,19 +717,39 @@ class VisionFlowAdvancedDashboard {
             const headers = this.getAuthHeaders();
             
             // 檢查是否有認證 token
-            const hasAuth = window.authManager && window.authManager.isLoggedIn;
+            const hasAuth = this.token; // 暫時簡化認證檢查，只檢查 token 是否存在
+            
+            console.log('認證狀態檢查:', {
+                token: this.token ? '存在' : '不存在',
+                isLoggedIn: this.isLoggedIn,
+                hasAuth: hasAuth
+            });
 
             let dashboardStats, alerts, cameras, systemStatus;
 
             if (hasAuth) {
                 // 有認證，嘗試從 API 獲取真實數據
                 try {
-                    [dashboardStats, alerts, cameras, systemStatus] = await Promise.all([
-                        fetch('/api/dashboard/stats', { headers }).then(r => r.json()),
-                        fetch('/api/alerts/active', { headers }).then(r => r.json()),
-                        fetch('/api/cameras', { headers }).then(r => r.json()),
-                        fetch('/api/system/status', { headers }).then(r => r.json())
+                    [dashboardStats, alerts, systemStatus] = await Promise.all([
+                        fetch(`${API_URL}/api/dashboard/stats`, { headers }).then(r => r.json()),
+                        fetch(`${API_URL}/api/alerts/active`, { headers }).then(r => r.json()),
+                        fetch(`${API_URL}/api/system/status`, { headers }).then(r => r.json())
                     ]);
+                    
+                    // 單獨獲取攝影機數據，因為路徑不同
+                    try {
+                        const cameraResponse = await fetch(`${API_URL}/camera/cameras`, {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${this.token}`
+                            }
+                        });
+                        cameras = { success: cameraResponse.ok, data: await cameraResponse.json() };
+                    } catch (cameraError) {
+                        console.warn('攝影機數據獲取失敗:', cameraError);
+                        const [, , mockCameras] = this.getMockData();
+                        cameras = mockCameras;
+                    }
                 } catch (apiError) {
                     console.warn('API 請求失敗，使用模擬數據:', apiError);
                     // API 失敗，使用模擬數據
@@ -1050,8 +1083,11 @@ class VisionFlowAdvancedDashboard {
             // 如果控制器沒有數據，嘗試從主 API 獲取（需要 token）
             if (!useRealData) {
                 try {
-                    const response = await fetch('/api/cameras', {
-                        headers: this.getAuthHeaders()
+                    const response = await fetch(`${API_URL}/camera/cameras`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.token}`
+                        }
                     });
                     if (response.ok) {
                         const cameras_data = await response.json();
@@ -1204,9 +1240,15 @@ class VisionFlowAdvancedDashboard {
 
     showAddCameraModal() {
         console.log('顯示新增攝影機對話框');
+
+        // 改用 authManager 判斷
+        if (!window.authManager?.isLoggedIn) {
+            this.showNotification('請先登入才能新增攝影機', 'warning');
+            window.authManager.showLoginModal();
+            return;
+        }
+
         this.showNotification('正在開啟新增攝影機對話框...', 'info');
-        
-        // 這裡可以實現模態對話框
         if (window.Swal) {
             Swal.fire({
                 title: '新增攝影機',
@@ -1225,23 +1267,55 @@ class VisionFlowAdvancedDashboard {
                 cancelButtonText: '取消'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    const name = document.getElementById('camera-name').value;
-                    const url = document.getElementById('camera-url').value;
+                    const name = document.getElementById('camera-name').value.trim();
+                    const url  = document.getElementById('camera-url').value.trim();
+                    if (!name) {
+                        this.showNotification('請輸入攝影機名稱', 'error');
+                        return;
+                    }
+                    if (!url) {
+                        this.showNotification('請輸入 RTSP URL', 'error');
+                        return;
+                    }
                     this.addCamera(name, url);
                 }
             });
         }
     }
 
-    addCamera(name, url) {
+    async addCamera(name, url) {
         console.log('新增攝影機:', { name, url });
         this.showNotification(`正在新增攝影機: ${name}`, 'info');
         
-        // 這裡可以發送 API 請求新增攝影機
-        setTimeout(() => {
-            this.showNotification(`攝影機 ${name} 新增成功`, 'success');
-            this.loadCameraData(); // 重新載入攝影機數據
-        }, 1500);
+        try {
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.token}`
+            };
+            
+            const response = await fetch(`${API_URL}/camera/cameras`, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    name: name,
+                    stream_url: url
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.id) {  // 假設成功回傳新增攝影機的ID
+                this.showNotification(`攝影機 ${name} 新增成功`, 'success');
+                this.loadCameraData(); // 重新載入攝影機數據
+            } else if (result.message) {
+                throw new Error(result.message);
+            } else {
+                throw new Error('新增攝影機失敗');
+            }
+        } catch (error) {
+            console.error('新增攝影機錯誤:', error);
+            this.showNotification(`新增攝影機失敗: ${error.message}`, 'error');
+        }
     }
 
     async loadCameraStream(cameraId) {
@@ -1973,7 +2047,7 @@ class VisionFlowAdvancedDashboard {
 // 認證管理類
 class AuthManager {
     constructor() {
-        this.token = localStorage.getItem('auth_token');
+        this.token = localStorage.getItem('accessToken');
         this.isLoggedIn = false;
         this.currentUser = null;
         this.init();
@@ -2062,33 +2136,37 @@ class AuthManager {
     }
 
     async checkAuthStatus() {
+        console.log('檢查認證狀態，token:', this.token ? '存在' : '不存在');
+
         if (!this.token) {
             this.isLoggedIn = false;
-            // 不自動顯示登入框，讓用戶手動點擊登入
-            return;
+        } else {
+            try {
+                const res = await fetch(`${API_URL}/auth/verify`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.isLoggedIn = true;
+                    this.currentUser = data.user;
+                } else {
+                    this.logout();
+                }
+            } catch (err) {
+                console.error('認證驗證錯誤:', err);
+                this.logout();
+            }
         }
 
-        try {
-            const response = await fetch('/auth/verify', {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                this.isLoggedIn = true;
-                this.currentUser = data.user;
-            } else {
-                this.logout();
-                // 不自動顯示登入框
-            }
-        } catch (error) {
-            console.error('驗證失敗:', error);
-            this.logout();
-            // 不自動顯示登入框
+        // 驗證完畢後再更新 UI
+        this.updateUI();
+        // 並同步到 Dashboard
+        if (window.visionFlowDashboard) {
+            window.visionFlowDashboard.isLoggedIn = this.isLoggedIn;
         }
     }
 
@@ -2103,47 +2181,36 @@ class AuthManager {
         }
 
         try {
-            const response = await fetch('/auth/login', {
+            const res = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    username: username,
-                    password: password
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
             });
+            const data = await res.json();
 
-            const data = await response.json();
-
-            if (response.ok) {
+            if (res.ok) {
                 this.token = data.access_token;
-                localStorage.setItem('auth_token', this.token);
+                localStorage.setItem('accessToken', this.token);
                 this.isLoggedIn = true;
-                
-                // 使用返回的用戶數據或創建用戶對象
-                this.currentUser = {
-                    username: username,
-                    account_uuid: data.account_uuid
-                };
-                
+                this.currentUser = { username, account_uuid: data.account_uuid };
+
                 bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
                 this.updateUI();
                 this.showNotification('登入成功', 'success');
-                
-                // 登入成功後刷新儀表板數據
+
+                // 同步 Dashboard 並刷新資料
                 if (window.visionFlowDashboard) {
+                    window.visionFlowDashboard.isLoggedIn = true;
                     window.visionFlowDashboard.fetchLatestData();
                 }
-                
-                // 清空表單
+
                 document.getElementById('loginForm').reset();
                 errorDiv.style.display = 'none';
             } else {
                 this.showError(errorDiv, data.message || '登入失敗');
             }
-        } catch (error) {
-            console.error('登入錯誤:', error);
+        } catch (err) {
+            console.error('登入錯誤:', err);
             this.showError(errorDiv, '網路錯誤，請稍後再試');
         }
     }
@@ -2172,7 +2239,7 @@ class AuthManager {
         }
 
         try {
-            const response = await fetch('/auth/register', {
+            const response = await fetch(`${API_URL}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2215,7 +2282,9 @@ class AuthManager {
         this.token = null;
         this.isLoggedIn = false;
         this.currentUser = null;
-        localStorage.removeItem('auth_token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('tokenExpireTime');
     }
 
     updateUI() {
