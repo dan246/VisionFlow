@@ -731,10 +731,8 @@ class VisionFlowAdvancedDashboard {
         try {
             // 獲取認證 headers
             const headers = this.getAuthHeaders();
-            
             // 檢查是否有認證 token
-            const hasAuth = this.token; // 暫時簡化認證檢查，只檢查 token 是否存在
-            
+            const hasAuth = this.token;
             console.log('認證狀態檢查:', {
                 token: this.token ? '存在' : '不存在',
                 isLoggedIn: this.isLoggedIn,
@@ -742,16 +740,28 @@ class VisionFlowAdvancedDashboard {
             });
 
             let dashboardStats, alerts, cameras, systemStatus;
+            let cameraStatusMap = {};
+
+            // 先取得攝影機狀態
+            try {
+                const statusResponse = await fetch('http://localhost:15440/camera_status');
+                if (statusResponse.ok) {
+                    const statusResult = await statusResponse.json();
+                    if (statusResult.success && statusResult.data) {
+                        cameraStatusMap = statusResult.data;
+                    }
+                }
+            } catch (e) {
+                console.warn('無法取得攝影機狀態:', e);
+            }
 
             if (hasAuth) {
-                // 有認證，嘗試從 API 獲取真實數據
                 try {
                     [dashboardStats, alerts, systemStatus] = await Promise.all([
                         fetch(`${API_URL}/api/dashboard/stats`, { headers }).then(r => r.json()),
                         fetch(`${API_URL}/api/alerts/active`, { headers }).then(r => r.json()),
                         fetch(`${API_URL}/api/system/status`, { headers }).then(r => r.json())
                     ]);
-                    
                     // 單獨獲取攝影機數據，因為路徑不同
                     try {
                         const cameraResponse = await fetch(`${API_URL}/camera/cameras`, {
@@ -760,7 +770,31 @@ class VisionFlowAdvancedDashboard {
                                 'Authorization': `Bearer ${this.token}`
                             }
                         });
-                        cameras = { success: cameraResponse.ok, data: await cameraResponse.json() };
+                        const cameras_data = await cameraResponse.json();
+                        console.log('cameras_data:', cameras_data);
+                        const cameraArr = Array.isArray(cameras_data) ? cameras_data : cameras_data.data;
+                        if (Array.isArray(cameraArr) && cameraArr.length > 0) {
+                            cameras = {
+                                success: true,
+                                data: cameraArr.map(cam => {
+                                    const statusObj = cameraStatusMap[String(cam.id)];
+                                    const isOnline = statusObj && statusObj.alive === 'True';
+                                    return {
+                                        id: cam.id,
+                                        name: cam.name || `攝影機 ${cam.id}`,
+                                        status: isOnline ? 'online' : 'offline',
+                                        detection_count_today: Math.floor(Math.random() * 50),
+                                        fps: 0,
+                                        last_timestamp: statusObj?.last_image_timestamp || new Date().toISOString(),
+                                        url: cam.stream_url || '',
+                                        thumbnail: isOnline
+                                            ? `http://localhost:15440/get_stream/${cam.id}`
+                                            : '/static/images/no_camera.gif'
+                                    };
+                                })
+                            };
+                            console.log('合併狀態後的 cameras:', cameras);
+                        }
                     } catch (cameraError) {
                         console.warn('攝影機數據獲取失敗:', cameraError);
                         const [, , mockCameras] = this.getMockData();
@@ -768,7 +802,6 @@ class VisionFlowAdvancedDashboard {
                     }
                 } catch (apiError) {
                     console.warn('API 請求失敗，使用模擬數據:', apiError);
-                    // API 失敗，使用模擬數據
                     [dashboardStats, alerts, cameras, systemStatus] = this.getMockData();
                 }
             } else {
@@ -781,27 +814,21 @@ class VisionFlowAdvancedDashboard {
             if (dashboardStats && dashboardStats.success) {
                 this.updateDashboardStats(dashboardStats.data);
             }
-
             // 更新警報顯示
             if (alerts && alerts.success) {
                 this.updateAlertsDisplay(alerts.data);
             }
-
             // 更新攝影機顯示
             if (cameras && cameras.success) {
                 this.updateCamerasDisplay(cameras.data);
             }
-
             // 更新系統性能
             if (systemStatus && systemStatus.success) {
                 this.updateSystemPerformance(systemStatus.data);
             }
-
         } catch (error) {
             console.error('獲取數據失敗:', error);
             this.showNotification('數據更新失敗', 'error');
-            
-            // 在錯誤情況下使用備用數據
             this.useFallbackData();
         }
     }
@@ -1034,11 +1061,11 @@ class VisionFlowAdvancedDashboard {
         }
     }
 
-    updateCameraGrid(cameras) {
+    updateCameraGrid(cameraList) {
         const cameraGrid = document.getElementById('camera-grid');
-        if (!cameraGrid || !cameras) return;
+        if (!cameraGrid || !cameraList) return;
 
-        cameraGrid.innerHTML = cameras.map(camera => `
+        cameraGrid.innerHTML = cameraList.map(camera => `
             <div class="camera-card" data-camera-id="${camera.id}">
                 <div class="camera-header">
                     <h6>${camera.name}</h6>
@@ -1063,74 +1090,68 @@ class VisionFlowAdvancedDashboard {
                 </div>
             </div>
         `).join('');
+
+        cameraList.forEach(camera => {
+            console.log('camera.id:', camera.id, 'thumbnail:', camera.thumbnail);
+        });
     }
 
     async loadCameraData() {
         try {
             console.log('正在載入攝影機數據...');
-            let cameras = [];
-            let useRealData = false;
-            // 首先嘗試從攝影機控制器獲取狀態
+            let cameraList = [];
+            let cameraStatusMap = {};
+
+            // 先取得攝影機狀態
             try {
                 const statusResponse = await fetch('http://localhost:15440/camera_status');
                 if (statusResponse.ok) {
                     const statusResult = await statusResponse.json();
-                    if (statusResult.success && statusResult.data && statusResult.data.length > 0) {
-                        cameras = statusResult.data.map(cam => ({
-                            id: parseInt(cam.camera_id),
-                            name: `攝影機 ${cam.camera_id}`,
-                            status: cam.status === 'True' ? 'online' : 'offline',
-                            detection_count_today: Math.floor(Math.random() * 50), // 模擬檢測數據
-                            fps: parseFloat(cam.fps) || 0,
-                            last_timestamp: cam.last_timestamp || new Date().toISOString(),
-                            url: cam.url || ''
-                        }));
-                        useRealData = true;
-                        console.log('成功從攝影機控制器載入數據:', cameras);
+                    if (statusResult.success && statusResult.data) {
+                        cameraStatusMap = statusResult.data; // 這是一個以 camera_id 為 key 的物件
                     }
                 }
-            } catch (controllerError) {
-                console.warn('攝影機控制器不可用，嘗試其他數據源:', controllerError);
+            } catch (e) {
+                console.warn('無法取得攝影機狀態:', e);
             }
-            // 如果控制器沒有數據，嘗試從主 API 獲取（需要 token）
-            if (!useRealData) {
-                try {
-                    const response = await fetch(`${API_URL}/camera/cameras`, {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${this.token}`
-                        }
-                    });
-                    if (response.ok) {
-                        const cameras_data = await response.json();
-                        if (Array.isArray(cameras_data) && cameras_data.length > 0) {
-                            cameras = cameras_data.map(cam => ({
+
+            // 再取得攝影機列表
+            try {
+                const response = await fetch(`${API_URL}/camera/cameras`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.token}`
+                    }
+                });
+                if (response.ok) {
+                    const cameras_data = await response.json();
+                    if (Array.isArray(cameras_data) && cameras_data.length > 0) {
+                        cameraList = cameras_data.map(cam => {
+                            // 取得該攝影機的狀態
+                            const statusObj = cameraStatusMap[cam.id?.toString()];
+                            const isOnline = statusObj && statusObj.alive === 'True';
+                            return {
                                 id: cam.id,
                                 name: cam.name || `攝影機 ${cam.id}`,
-                                status: Math.random() > 0.3 ? 'online' : 'offline', // 模擬狀態
+                                status: isOnline ? 'online' : 'offline',
                                 detection_count_today: Math.floor(Math.random() * 50),
-                                fps: Math.random() > 0.3 ? 30 : 0,
-                                last_timestamp: new Date().toISOString(),
-                                url: cam.stream_url || ''
-                            }));
-                            useRealData = true;
-                            console.log('成功從主 API 載入數據:', cameras);
-                        }
+                                fps: 0,
+                                last_timestamp: statusObj?.last_image_timestamp || new Date().toISOString(),
+                                url: cam.stream_url || '',
+                                thumbnail: isOnline
+                                    ? `http://localhost:15440/get_stream/${cam.id}`
+                                    : '/static/images/no_camera.gif'
+                            };
+                        });
+                        console.log('合併狀態後的 cameraList:', cameraList);
                     }
-                } catch (apiError) {
-                    console.warn('主 API 不可用:', apiError);
                 }
+            } catch (apiError) {
+                console.warn('主 API 不可用:', apiError);
             }
-            // 強制：如果都沒有真實數據，顯示錯誤，不用模擬資料
-            if (!useRealData) {
-                this.updateCameraGrid([]);
-                this.showNotification('無法取得攝影機資料，請確認 API 服務狀態', 'error');
-                return;
-            }
-            this.updateCameraGrid(cameras);
-            if (useRealData) {
-                this.showNotification(`成功載入 ${cameras.length} 個攝影機的數據`, 'success');
-            }
+
+            this.updateCameraGrid(cameraList);
+            this.showNotification(`成功載入 ${cameraList.length} 個攝影機的數據`, 'success');
         } catch (error) {
             console.error('載入攝影機數據失敗:', error);
             this.updateCameraGrid([]);
