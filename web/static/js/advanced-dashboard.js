@@ -439,7 +439,12 @@ class VisionFlowAdvancedDashboard {
                 datasets: [{
                     label: '今日檢測數量',
                     data: [],
-                    backgroundColor: function(context) {
+                    backgroundColor: (context) => {
+                        const yScale = context.chart.scales?.y;
+                        // 防呆：context.parsed 也可能是 undefined
+                        if (!yScale || !context.parsed || typeof context.parsed.y === 'undefined') {
+                            return 'rgba(54, 162, 235, 0.1)'; // 預設顏色
+                        }
                         const value = context.parsed.y;
                         if (value > 80) return '#28a745';
                         if (value > 50) return '#ffc107';
@@ -514,6 +519,17 @@ class VisionFlowAdvancedDashboard {
                             }
                         });
                     }, 100);
+                }
+                // 修正：每次切換到 cameras tab 時，重新綁定新增攝影機按鈕事件
+                if (targetTab === 'cameras') {
+                    const addCameraBtn = document.getElementById('add-camera');
+                    if (addCameraBtn) {
+                        addCameraBtn.onclick = null; // 先移除舊的
+                        addCameraBtn.addEventListener('click', () => {
+                            console.log('add-camera clicked'); // debug log
+                            this.showAddCameraModal();
+                        });
+                    }
                 }
             });
         });
@@ -1052,17 +1068,14 @@ class VisionFlowAdvancedDashboard {
     async loadCameraData() {
         try {
             console.log('正在載入攝影機數據...');
-            
             let cameras = [];
             let useRealData = false;
-            
+            // 首先嘗試從攝影機控制器獲取狀態
             try {
-                // 首先嘗試從攝影機控制器獲取狀態
                 const statusResponse = await fetch('http://localhost:15440/camera_status');
                 if (statusResponse.ok) {
                     const statusResult = await statusResponse.json();
                     if (statusResult.success && statusResult.data && statusResult.data.length > 0) {
-                        // 轉換控制器數據格式
                         cameras = statusResult.data.map(cam => ({
                             id: parseInt(cam.camera_id),
                             name: `攝影機 ${cam.camera_id}`,
@@ -1079,7 +1092,6 @@ class VisionFlowAdvancedDashboard {
             } catch (controllerError) {
                 console.warn('攝影機控制器不可用，嘗試其他數據源:', controllerError);
             }
-            
             // 如果控制器沒有數據，嘗試從主 API 獲取（需要 token）
             if (!useRealData) {
                 try {
@@ -1109,39 +1121,20 @@ class VisionFlowAdvancedDashboard {
                     console.warn('主 API 不可用:', apiError);
                 }
             }
-            
-            // 如果都沒有真實數據，使用模擬數據
+            // 強制：如果都沒有真實數據，顯示錯誤，不用模擬資料
             if (!useRealData) {
-                console.log('使用模擬攝影機數據');
-                cameras = [
-                    { id: 1, name: '前門攝影機', status: 'online', detection_count_today: 45, fps: 30 },
-                    { id: 2, name: '後門攝影機', status: 'online', detection_count_today: 23, fps: 29 },
-                    { id: 3, name: '側門攝影機', status: 'offline', detection_count_today: 0, fps: 0 },
-                    { id: 4, name: '車庫攝影機', status: 'online', detection_count_today: 12, fps: 30 },
-                    { id: 5, name: '倉庫攝影機', status: 'online', detection_count_today: 8, fps: 28 },
-                    { id: 6, name: '辦公室攝影機', status: 'offline', detection_count_today: 0, fps: 0 }
-                ];
+                this.updateCameraGrid([]);
+                this.showNotification('無法取得攝影機資料，請確認 API 服務狀態', 'error');
+                return;
             }
-            
             this.updateCameraGrid(cameras);
-            
-            // 如果使用了真實數據，顯示成功訊息
             if (useRealData) {
                 this.showNotification(`成功載入 ${cameras.length} 個攝影機的數據`, 'success');
             }
-            
         } catch (error) {
             console.error('載入攝影機數據失敗:', error);
-            
-            // 使用備用數據
-            const fallbackCameras = [
-                { id: 1, name: '前門攝影機', status: 'online', detection_count_today: 45, fps: 30 },
-                { id: 2, name: '後門攝影機', status: 'online', detection_count_today: 23, fps: 29 },
-                { id: 3, name: '側門攝影機', status: 'offline', detection_count_today: 0, fps: 0 },
-                { id: 4, name: '車庫攝影機', status: 'online', detection_count_today: 12, fps: 30 }
-            ];
-            this.updateCameraGrid(fallbackCameras);
-            this.showNotification('使用離線數據顯示攝影機資訊', 'warning');
+            this.updateCameraGrid([]);
+            this.showNotification('無法取得攝影機資料，請確認 API 服務狀態', 'error');
         }
     }
 
