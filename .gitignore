@@ -217,3 +217,9 @@ test_system.sh
 *~
 .DS_Store
 Thumbs.db
+API_TEST_REPORT.md
+API_TEST_FINAL_REPORT.md
+INTEGRATION_TEST_SUMMARY.md
+test_frontend_integration.py
+frontend_test_results.json
+tests/api_test_client.py

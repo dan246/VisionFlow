@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionFlow API 測試面板</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .test-section {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .test-btn {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .test-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { border-left: 4px solid #4CAF50; }
+        .error { border-left: 4px solid #f44336; }
+        .info { border-left: 4px solid #2196F3; }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        .status.online { background: #4CAF50; }
+        .status.offline { background: #f44336; }
+        input {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            margin-right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 VisionFlow API 測試面板</h1>
+        
+        <div class="grid">
+            <!-- 認證測試 -->
+            <div class="test-section">
+                <h2>🔐 認證測試</h2>
+                <div>
+                    <input type="text" id="username" placeholder="用戶名" value="test">
+                    <input type="password" id="password" placeholder="密碼" value="test1234">
+                    <button class="test-btn" onclick="testLogin()">登入測試</button>
+                    <button class="test-btn" onclick="testVerify()">驗證 Token</button>
+                    <span id="authStatus" class="status offline">未登入</span>
+                </div>
+                <div id="authResult" class="result"></div>
+            </div>
+
+            <!-- 儀表板 API 測試 -->
+            <div class="test-section">
+                <h2>📊 儀表板 API</h2>
+                <button class="test-btn" onclick="testDashboardStats()">Dashboard Stats</button>
+                <button class="test-btn" onclick="testSystemStatus()">System Status</button>
+                <button class="test-btn" onclick="testAlerts()">Alerts</button>
+                <button class="test-btn" onclick="testAnalytics()">Analytics</button>
+                <div id="dashboardResult" class="result"></div>
+            </div>
+
+            <!-- 攝影機 API 測試 -->
+            <div class="test-section">
+                <h2>📹 攝影機 API</h2>
+                <button class="test-btn" onclick="testCameraList()">攝影機列表</button>
+                <button class="test-btn" onclick="testCameraStatus()">攝影機狀態</button>
+                <div id="cameraResult" class="result"></div>
+            </div>
+
+            <!-- WebSocket 測試 -->
+            <div class="test-section">
+                <h2>🔌 WebSocket 連接</h2>
+                <button class="test-btn" onclick="testWebSocket()">連接 WebSocket</button>
+                <button class="test-btn" onclick="disconnectWebSocket()">斷開連接</button>
+                <span id="wsStatus" class="status offline">未連接</span>
+                <div id="wsResult" class="result"></div>
+            </div>
+        </div>
+
+        <!-- 綜合測試結果 -->
+        <div class="test-section">
+            <h2>📋 測試摘要</h2>
+            <button class="test-btn" onclick="runAllTests()">執行所有測試</button>
+            <button class="test-btn" onclick="clearResults()">清空結果</button>
+            <div id="summaryResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        let token = localStorage.getItem('accessToken');
+        let socket = null;
+
+        // 更新認證狀態顯示
+        function updateAuthStatus() {
+            const status = document.getElementById('authStatus');
+            if (token) {
+                status.textContent = '已登入';
+                status.className = 'status online';
+            } else {
+                status.textContent = '未登入';
+                status.className = 'status offline';
+            }
+        }
+
+        // 顯示結果
+        function showResult(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = isError ? 'error' : (message.includes('成功') ? 'success' : 'info');
+            element.innerHTML = `<div class="${className}">[${timestamp}] ${message}</div>` + element.innerHTML;
+        }
+
+        // 測試登入
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.access_token) {
+                    token = data.access_token;
+                    localStorage.setItem('accessToken', token);
+                    showResult('authResult', `✅ 登入成功！\nToken: ${token.substring(0, 20)}...`);
+                    updateAuthStatus();
+                } else {
+                    showResult('authResult', `❌ 登入失敗: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('authResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 驗證 Token
+        async function testVerify() {
+            if (!token) {
+                showResult('authResult', '⚠️ 請先登入', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/verify`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('authResult', `✅ Token 有效！\n用戶資訊: ${JSON.stringify(data, null, 2)}`);
+                } else {
+                    showResult('authResult', `❌ Token 無效: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('authResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 測試儀表板統計
+        async function testDashboardStats() {
+            try {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch(`${API_URL}/api/dashboard/stats`, { headers });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('dashboardResult', `✅ Dashboard Stats:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    showResult('dashboardResult', `❌ 錯誤: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('dashboardResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 測試系統狀態
+        async function testSystemStatus() {
+            try {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch(`${API_URL}/api/system/status`, { headers });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('dashboardResult', `✅ System Status:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    showResult('dashboardResult', `❌ 錯誤: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('dashboardResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 測試告警
+        async function testAlerts() {
+            try {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch(`${API_URL}/api/alerts`, { headers });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('dashboardResult', `✅ Alerts:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    showResult('dashboardResult', `❌ 錯誤: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('dashboardResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 測試分析
+        async function testAnalytics() {
+            try {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch(`${API_URL}/api/analytics/trend`, { headers });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('dashboardResult', `✅ Analytics Trend:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    showResult('dashboardResult', `❌ 錯誤: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('dashboardResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 測試攝影機列表
+        async function testCameraList() {
+            try {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const response = await fetch(`${API_URL}/camera/cameras`, { headers });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('cameraResult', `✅ 攝影機列表:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    showResult('cameraResult', `❌ 錯誤: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('cameraResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 測試攝影機狀態
+        async function testCameraStatus() {
+            try {
+                const response = await fetch(`http://localhost:15440/camera_status`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('cameraResult', `✅ 攝影機狀態:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    showResult('cameraResult', `❌ 錯誤: ${JSON.stringify(data)}`, true);
+                }
+            } catch (error) {
+                showResult('cameraResult', `❌ 錯誤: ${error.message}`, true);
+            }
+        }
+
+        // 測試 WebSocket
+        function testWebSocket() {
+            if (socket && socket.connected) {
+                showResult('wsResult', '⚠️ WebSocket 已經連接');
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = '/socket.io/socket.io.js';
+            script.onload = () => {
+                socket = io(API_URL, {
+                    transports: ['websocket', 'polling']
+                });
+
+                socket.on('connect', () => {
+                    showResult('wsResult', '✅ WebSocket 連接成功！');
+                    document.getElementById('wsStatus').textContent = '已連接';
+                    document.getElementById('wsStatus').className = 'status online';
+                    
+                    // 加入房間
+                    socket.emit('join_room', { room: 'dashboard' });
+                });
+
+                socket.on('disconnect', () => {
+                    showResult('wsResult', '⚠️ WebSocket 斷開連接');
+                    document.getElementById('wsStatus').textContent = '未連接';
+                    document.getElementById('wsStatus').className = 'status offline';
+                });
+
+                socket.on('room_status', (data) => {
+                    showResult('wsResult', `📢 房間狀態: ${JSON.stringify(data)}`);
+                });
+
+                socket.on('camera_update', (data) => {
+                    showResult('wsResult', `📹 攝影機更新: ${JSON.stringify(data)}`);
+                });
+
+                socket.on('alert', (data) => {
+                    showResult('wsResult', `🚨 告警: ${JSON.stringify(data)}`);
+                });
+            };
+            document.body.appendChild(script);
+        }
+
+        // 斷開 WebSocket
+        function disconnectWebSocket() {
+            if (socket && socket.connected) {
+                socket.disconnect();
+                showResult('wsResult', '✅ 已主動斷開連接');
+            } else {
+                showResult('wsResult', '⚠️ WebSocket 未連接');
+            }
+        }
+
+        // 執行所有測試
+        async function runAllTests() {
+            showResult('summaryResult', '🚀 開始執行所有測試...');
+            
+            // 確保有 token
+            if (!token) {
+                await testLogin();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            // 執行各項測試
+            const tests = [
+                { name: 'Token 驗證', func: testVerify },
+                { name: 'Dashboard Stats', func: testDashboardStats },
+                { name: 'System Status', func: testSystemStatus },
+                { name: 'Alerts', func: testAlerts },
+                { name: 'Analytics', func: testAnalytics },
+                { name: '攝影機列表', func: testCameraList },
+                { name: '攝影機狀態', func: testCameraStatus },
+                { name: 'WebSocket', func: testWebSocket }
+            ];
+            
+            let passed = 0;
+            let failed = 0;
+            
+            for (const test of tests) {
+                try {
+                    showResult('summaryResult', `測試 ${test.name}...`);
+                    await test.func();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    passed++;
+                } catch (error) {
+                    failed++;
+                    showResult('summaryResult', `❌ ${test.name} 失敗: ${error.message}`, true);
+                }
+            }
+            
+            showResult('summaryResult', `\n📊 測試完成！\n✅ 成功: ${passed}\n❌ 失敗: ${failed}\n成功率: ${(passed/(passed+failed)*100).toFixed(1)}%`);
+        }
+
+        // 清空結果
+        function clearResults() {
+            ['authResult', 'dashboardResult', 'cameraResult', 'wsResult', 'summaryResult'].forEach(id => {
+                document.getElementById(id).innerHTML = '';
+            });
+        }
+
+        // 初始化
+        updateAuthStatus();
+    </script>
+</body>
+</html>
