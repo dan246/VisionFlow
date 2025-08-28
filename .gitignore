@@ -200,3 +200,21 @@ rtsp_test/frames/
 object_recognition/saved_images/
 redis-data/
 camera_ctrler/__pycache__/
+
+# Claude AI 設定（保留 steering 文件）
+.claude/*
+!.claude/steering/
+
+# 測試相關檔案
+.env.test
+db_test/
+test_frontend.html
+diagnosis_report.json
+test_system.sh
+
+# 暫存檔案
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

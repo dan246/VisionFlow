@@ -2,7 +2,7 @@
  * VisionFlow Real-time Monitoring Dashboard
  * Advanced WebSocket-based dashboard with modern UI/UX
  */
-const API_URL        = "http://localhost:5001";    // 後端主機＋埠號
+const API_URL        = window.location.origin;     // 使用當前網站的 origin
 const STREAM_API_URL = "http://localhost:15440";   // 串流服務埠號
 class VisionFlowAdvancedDashboard {
     constructor() {

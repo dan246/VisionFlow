@@ -33,7 +33,7 @@ RUN apt-get clean && \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libgl1-mesa-glx \
+    libgl1 \
     curl \
     wget \
     && apt-get clean \

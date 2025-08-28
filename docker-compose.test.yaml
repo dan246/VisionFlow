@@ -1,0 +1,92 @@
+version: "3.8"
+
+services:
+  # PostgreSQL 資料庫 - 測試配置
+  db:
+    container_name: 'visionflow_test_db'
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: visionflow123
+      POSTGRES_DB: visionflow_test
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./db_test/:/var/lib/postgresql/data/
+    networks:
+      - visionflow-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d visionflow_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis 快取 - 測試配置
+  redis:
+    container_name: 'visionflow_test_redis'
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    networks:
+      - visionflow-test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Web 後端 - 測試配置（開發模式）
+  backend:
+    container_name: 'visionflow_test_backend'
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Flask 配置
+      FLASK_ENV: development
+      FLASK_DEBUG: "true"
+      SECRET_KEY: test-secret-key
+      
+      # 資料庫配置
+      DATABASE_URL: postgresql://admin:visionflow123@db:5432/visionflow_test
+      SQLALCHEMY_DATABASE_URI: postgresql://admin:visionflow123@db:5432/visionflow_test
+      
+      # Redis 配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # 日誌
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: 1
+      
+    volumes:
+      - ./web:/app
+      - ./shared:/app/shared
+      - ./logs:/app/logs
+    ports:
+      - "5001:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        python -m flask db upgrade &&
+        echo 'Starting Flask in development mode...' &&
+        python -m flask run --host=0.0.0.0 --port=5000 --reload
+      "
+    networks:
+      - visionflow-test-network
+
+networks:
+  visionflow-test-network:
+    driver: bridge
