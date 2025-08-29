@@ -130,6 +130,133 @@ h1, h2, h3, h4 {
   margin-left: 10px;
 }
 
+/* 新增攝影機動畫效果 */
+@keyframes fadeInSlide {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.newly-added-camera {
+  transition: all 0.5s ease-out;
+}
+
+/* 刪除攝影機動畫效果 */
+@keyframes fadeOutSlide {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    height: auto;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 0;
+  }
+  50% {
+    opacity: 0;
+    transform: translateX(20px);
+    height: auto;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px);
+    height: 0;
+    padding: 0;
+    margin-bottom: 0;
+  }
+}
+
+.camera-item-removing {
+  animation: fadeOutSlide 0.5s ease-out forwards;
+  overflow: hidden;
+}
+
+/* 攝影機項目向上滑動填補空隙 */
+@keyframes slideUp {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-10px);
+  }
+}
+
+.camera-item-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* 成功訊息動畫效果 */
+.alert-success {
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+/* Loading states */
+.loading-state {
+  position: relative;
+}
+
+.loading-overlay {
+  border-radius: 8px;
+  backdrop-filter: blur(1px);
+}
+
+.btn.loading-state {
+  position: relative;
+}
+
+/* Global loading overlay */
+#global-loading-overlay {
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Button loading animations */
+.btn-loading .spinner-border {
+  margin-right: 0.5rem;
+}
+
+.test-btn-loading .spinner-border {
+  margin-right: 0.5rem;
+}
+
+/* Smooth transitions for loading states */
+.btn-text, .btn-loading {
+  transition: opacity 0.2s ease-in-out;
+}
+
+.test-btn-text, .test-btn-loading {
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Loading overlay fade in animation */
+@keyframes loadingFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.loading-overlay {
+  animation: loadingFadeIn 0.2s ease-out;
+}
+
+#global-loading-overlay {
+  animation: loadingFadeIn 0.3s ease-out;
+}
+
+/* Ensure spinner alignment */
+.spinner-border {
+  vertical-align: middle;
+}
+
 /* 響應式設計 */
 @media (max-width: 768px) {
   .container {
@@ -148,5 +275,15 @@ h1, h2, h3, h4 {
 
   .button-group .btn {
     width: 100%;
+  }
+  
+  /* Adjust loading overlay for mobile */
+  #global-loading-overlay .spinner-border {
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  #global-loading-overlay div {
+    font-size: 1rem !important;
   }
 }

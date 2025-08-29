@@ -1,0 +1,62 @@
+{
+  "timestamp": "2025-08-29T13:35:37.932701",
+  "base_url": "http://localhost:5001",
+  "results": [
+    {
+      "status": "FAIL",
+      "test": "\u767b\u5165\u529f\u80fd",
+      "error": "Test returned False"
+    },
+    {
+      "status": "FAIL",
+      "test": "Token \u9a57\u8b49",
+      "error": "Test returned False"
+    },
+    {
+      "status": "PASS",
+      "test": "\u7121\u6548\u767b\u5165\u8655\u7406",
+      "error": null
+    },
+    {
+      "status": "FAIL",
+      "test": "\u651d\u5f71\u6a5f\u5217\u8868",
+      "error": "Test returned False"
+    },
+    {
+      "status": "FAIL",
+      "test": "\u65b0\u589e\u651d\u5f71\u6a5f",
+      "error": "Test returned False"
+    },
+    {
+      "status": "FAIL",
+      "test": "\u5100\u8868\u677f\u7d71\u8a08",
+      "error": "Test returned False"
+    },
+    {
+      "status": "FAIL",
+      "test": "\u7cfb\u7d71\u72c0\u614b",
+      "error": "Test returned False"
+    },
+    {
+      "status": "FAIL",
+      "test": "\u544a\u8b66\u5217\u8868",
+      "error": "Test returned False"
+    },
+    {
+      "status": "PASS",
+      "test": "API \u56de\u61c9\u6642\u9593",
+      "error": null
+    },
+    {
+      "status": "FAIL",
+      "test": "\u4e26\u767c\u8acb\u6c42\u8655\u7406",
+      "error": "Test returned False"
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "passed": 2,
+    "failed": 8,
+    "errors": 0
+  }
+}

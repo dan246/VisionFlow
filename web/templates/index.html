@@ -43,7 +43,7 @@
           <label for="loginPassword">密碼</label>
           <input type="password" class="form-control" id="loginPassword" placeholder="輸入密碼" required>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">登入</button>
+        <button type="submit" class="btn btn-primary btn-block" id="loginButton">登入</button>
       </form>
 
       <!-- 登入錯誤訊息 -->
@@ -131,9 +131,25 @@
           </div>
           <div class="form-group">
             <label for="newCameraStreamUrl">串流 URL</label>
-            <input type="url" class="form-control" id="newCameraStreamUrl" placeholder="輸入串流 URL" required>
+            <div class="input-group">
+              <input type="url" class="form-control" id="newCameraStreamUrl" placeholder="輸入串流 URL" required>
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-secondary" id="testNewCameraConnection">
+                  <span class="test-btn-text">測試連線</span>
+                  <span class="test-btn-loading d-none">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    測試中...
+                  </span>
+                </button>
+              </div>
+            </div>
+            <small id="newCameraConnectionResult" class="form-text" style="display: none;"></small>
           </div>
-          <button type="submit" class="btn btn-success btn-block">新增攝影機</button>
+          <div class="form-group">
+            <label for="newCameraRecognition">辨識模型</label>
+            <input type="text" class="form-control" id="newCameraRecognition" placeholder="輸入模型名稱 (選填)">
+          </div>
+          <button type="submit" class="btn btn-success btn-block" id="addCameraButton">新增攝影機</button>
         </form>
         <div id="addCameraError" class="alert alert-danger mt-3" style="display:none;"></div>
         <div id="addCameraSuccess" class="alert alert-success mt-3" style="display:none;"></div>
@@ -151,14 +167,26 @@
           </div>
           <div class="form-group">
             <label for="updateCameraStreamUrl">新的串流 URL</label>
-            <input type="url" class="form-control" id="updateCameraStreamUrl" placeholder="輸入新的串流 URL">
+            <div class="input-group">
+              <input type="url" class="form-control" id="updateCameraStreamUrl" placeholder="輸入新的串流 URL">
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-secondary" id="testUpdateCameraConnection">
+                  <span class="test-btn-text">測試連線</span>
+                  <span class="test-btn-loading d-none">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    測試中...
+                  </span>
+                </button>
+              </div>
+            </div>
+            <small id="updateCameraConnectionResult" class="form-text" style="display: none;"></small>
           </div>
           <div class="form-group">
             <label for="updateCameraRecognition">辨識狀態</label>
             <input type="text" class="form-control" id="updateCameraRecognition" placeholder="輸入模型名稱">
             </select>
           </div>
-          <button type="submit" class="btn btn-warning btn-block">更新攝影機</button>
+          <button type="submit" class="btn btn-warning btn-block" id="updateCameraButton">更新攝影機</button>
         </form>
         <div id="updateCameraError" class="alert alert-danger mt-3" style="display:none;"></div>
         <div id="updateCameraSuccess" class="alert alert-success mt-3" style="display:none;"></div>
